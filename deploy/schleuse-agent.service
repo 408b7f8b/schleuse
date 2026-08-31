@@ -1,0 +1,64 @@
+# Dienst auf dem Geraet.
+#
+#   install -m755 schleuse /usr/local/bin/schleuse
+#   useradd --system --no-create-home --shell /usr/sbin/nologin schleuse
+#   install -d -m750 -o root -g schleuse /etc/schleuse
+#   install -m640 -o root -g schleuse ca.crt device-<id>.crt device-<id>.key agent.json /etc/schleuse/
+#   systemctl enable --now schleuse-agent
+
+[Unit]
+Description=schleuse agent - ausgehender Reverse-Tunnel zum Relay
+Documentation=file:/usr/local/share/doc/schleuse/README.md
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=exec
+ExecStart=/usr/local/bin/schleuse agent -c /etc/schleuse/agent.json
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=always
+RestartSec=5
+User=schleuse
+Group=schleuse
+UMask=0077
+
+# --- Haertung ---------------------------------------------------------------
+# Der Agent braucht nichts ausser ausgehenden TCP-Verbindungen und seinen
+# Zertifikaten. Alles andere wird ihm entzogen.
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+PrivateTmp=yes
+PrivateDevices=yes
+PrivateUsers=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectProc=invisible
+ProcSubset=pid
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictAddressFamilies=AF_INET AF_INET6
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+# Native AOT kennt keinen JIT - der Prozess kommt ohne beschreibbaren
+# ausfuehrbaren Speicher aus. Nach einem Wechsel auf ein Nicht-AOT-Binary
+# muss diese Zeile raus.
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources @obsolete
+ReadOnlyPaths=/etc/schleuse
+
+LimitNOFILE=8192
+MemoryMax=128M
+TasksMax=256
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,17 @@
+{
+  "relay": "tunnel.example.com:443",
+
+  "ca":   "ca.crt",
+  "cert": "client-db.crt",
+  "key":  "client-db.key",
+
+  // Ein Prozess bedient alle Weiterleitungen gleichzeitig.
+  // "schleuse client" ohne weitere Angaben startet genau diese Liste.
+  "forwards": [
+    { "listen": "127.0.0.1:2201", "device": "werk1-hmi", "service": "ssh"    },
+    { "listen": "127.0.0.1:8001", "device": "werk1-hmi", "service": "http"   },
+    { "listen": "127.0.0.1:2202", "device": "werk2-hmi", "service": "ssh"    },
+    { "listen": "127.0.0.1:8002", "device": "werk2-hmi", "service": "http"   },
+    { "listen": "127.0.0.1:5021", "device": "werk2-hmi", "service": "modbus" }
+  ]
+}

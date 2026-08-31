@@ -1,0 +1,107 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "serialNumber": "urn:uuid:dad6b639-fa86-4991-920d-aa9bcf5be76f",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2026-08-31T09:59:55Z",
+    "component": {
+      "type": "application",
+      "bom-ref": "schleuse@1.0.0",
+      "name": "schleuse",
+      "version": "1.0.0",
+      "description": "Reverse-Tunnel fuer Linux-Geraete mit Relay, Selbstanmeldung und Verwaltung",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    "tools": {
+      "components": [
+        {
+          "type": "application",
+          "name": "scripts/sbom.sh",
+          "version": "1"
+        }
+      ]
+    }
+  },
+  "components": [
+    {
+      "type": "framework",
+      "name": "Microsoft.NETCore.App",
+      "version": "10.0.400",
+      "purl": "pkg:nuget/Microsoft.NETCore.App@10.0.400",
+      "description": "Laufzeit und Basisbibliothek, statisch in das Binary uebersetzt",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "framework",
+      "name": "Microsoft.AspNetCore.App",
+      "version": "10.0.400",
+      "purl": "pkg:nuget/Microsoft.AspNetCore.App@10.0.400",
+      "description": "Kestrel als HTTP-Server fuer Weboberflaeche und Schnittstelle",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "Microsoft.DotNet.ILCompiler",
+      "version": "10.0.11",
+      "purl": "pkg:nuget/Microsoft.DotNet.ILCompiler@10.0.11",
+      "scope": "excluded",
+      "description": "Werkzeug der Uebersetzung, nicht Bestandteil des Binarys",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "Microsoft.NET.ILLink.Tasks",
+      "version": "10.0.11",
+      "purl": "pkg:nuget/Microsoft.NET.ILLink.Tasks@10.0.11",
+      "scope": "excluded",
+      "description": "Werkzeug der Uebersetzung, nicht Bestandteil des Binarys",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "runtime.linux-x64.Microsoft.DotNet.ILCompiler",
+      "version": "10.0.11",
+      "purl": "pkg:nuget/runtime.linux-x64.Microsoft.DotNet.ILCompiler@10.0.11",
+      "scope": "excluded",
+      "description": "Werkzeug der Uebersetzung, nicht Bestandteil des Binarys",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    }
+  ]
+}

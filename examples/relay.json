@@ -1,0 +1,49 @@
+{
+  "listen": "0.0.0.0:443",
+
+  "ca":   "/etc/schleuse/ca.crt",
+  "cert": "/etc/schleuse/relay.crt",
+  "key":  "/etc/schleuse/relay.key",
+
+  // Wird von der Weboberflaeche geschrieben - darum unter /var/lib, nicht /etc.
+  "acl": "/var/lib/schleuse/acl.json",
+
+  // Vorgabe ist false: ohne Eintrag in der Geraeteliste darf sich niemand
+  // anmelden. Nur setzen, wenn eine bestehende Anlage ohne Liste laeuft.
+  "allow_unlisted_devices": false,
+
+  // Selbstanmeldung neuer Geraete. Ohne diesen Abschnitt stellt der Relay
+  // nichts aus und nimmt keine Antraege an.
+  "enrollment": {
+    "ca":            "/etc/schleuse/device-ca.crt",
+    "key":           "/etc/schleuse/device-ca.key",
+    "queue":         "/var/lib/schleuse/pending.json",
+    "cert_days":     825,
+    "max_pending":   32,
+    "pending_hours": 72
+  },
+
+  // Verwaltung im Browser. Ohne diesen Abschnitt laeuft keine.
+  "web": {
+    "listen": "0.0.0.0:8443",
+    "cert":   "/etc/letsencrypt/live/tunnel.example.com/fullchain.pem",
+    "key":    "/etc/letsencrypt/live/tunnel.example.com/privkey.pem",
+    "users":  "/var/lib/schleuse/users.json",
+    "issuer": "schleuse tunnel.example.com",
+
+    // Marken der Schnittstelle und der Schalter fuer die Oberflaeche.
+    "state": "/var/lib/schleuse/api.json",
+
+    // Vorsatz aller Schnittstellenpfade. Ein selbst gewaehlter Wert haelt
+    // beilaeufiges Absuchen fern; die eigentliche Absicherung ist die Marke.
+    "api_path": "/api"
+  },
+
+  "max_streams_per_device": 64,
+  "max_streams_per_client": 16,
+  "stream_open_timeout_sec": 15,
+  "handshake_timeout_sec": 10,
+  "ping_interval_sec": 30,
+  "ping_timeout_sec": 90,
+  "max_concurrent_handshakes": 256
+}

@@ -1,0 +1,65 @@
+# ---------------------------------------------------------------------------
+# Bau-Artefakte
+# ---------------------------------------------------------------------------
+bin/
+obj/
+out/
+*.dbg
+*.pdb
+
+# ---------------------------------------------------------------------------
+# Schluesselmaterial. Nichts davon gehoert je in ein Repository - auch nicht
+# "nur zum Testen". Die Muster greifen absichtlich breit: eine vergessene
+# Datei ist teurer als eine zu viel ignorierte.
+# ---------------------------------------------------------------------------
+pki/
+pki-*/
+*.key
+*.crt
+*.csr
+*.srl
+*.pem
+*.pfx
+*.p12
+
+# ---------------------------------------------------------------------------
+# Laufzeitzustand des Relays: Kennwort-Hashes, TOTP-Geheimnisse, Marken der
+# Schnittstelle, offene Antraege. Entsteht im Betrieb neben der Konfiguration.
+# Die Muster unter examples/ sind davon ausgenommen - sie enthalten nichts
+# Echtes und gehoeren zur Doku.
+# ---------------------------------------------------------------------------
+users.json
+api.json
+pending.json
+enroll-state.json
+relay.json
+agent.json
+client.json
+acl.json
+!examples/*.json
+
+# ---------------------------------------------------------------------------
+# Betriebsunterlagen der eigenen Anlage. Das Repository beschreibt das
+# Werkzeug, nicht die Installation: BETRIEB.md nennt oeffentliche Adressen,
+# DNS-Kette und Zugaenge des laufenden Relays und bleibt lokal.
+# ---------------------------------------------------------------------------
+BETRIEB.md
+
+# ---------------------------------------------------------------------------
+# Protokolle und Arbeitsreste
+# ---------------------------------------------------------------------------
+*.log
+*.bak
+*~
+/tmp/
+scratch/
+
+# ---------------------------------------------------------------------------
+# Werkzeuge und Arbeitsplatz
+# ---------------------------------------------------------------------------
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+.DS_Store

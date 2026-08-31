@@ -1,0 +1,70 @@
+# Vermittlungsdienst auf dem Server im Internet.
+#
+#   install -m755 schleuse /usr/local/bin/schleuse
+#   useradd --system --no-create-home --shell /usr/sbin/nologin schleuse
+#   install -d -m750 -o root -g schleuse /etc/schleuse
+#   install -m640 -o root -g schleuse ca.crt relay.crt relay.key relay.json /etc/schleuse/
+#   # nur wenn Geraete sich selbst anmelden sollen:
+#   install -m640 -o root -g schleuse device-ca.crt device-ca.key /etc/schleuse/
+#   systemctl enable --now schleuse-relay
+#
+# Veraenderliche Daten (Zugriffsliste, Warteschlange, Benutzer) legt der Dienst
+# selbst unter /var/lib/schleuse an - systemd erzeugt das Verzeichnis.
+#
+# acl.json neu einlesen, ohne Sitzungen zu unterbrechen:
+#   systemctl reload schleuse-relay
+
+[Unit]
+Description=schleuse relay - Vermittlung zwischen Geraeten und Bedienern
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=exec
+ExecStart=/usr/local/bin/schleuse relay -c /etc/schleuse/relay.json
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=always
+RestartSec=5
+User=schleuse
+Group=schleuse
+UMask=0077
+
+# Fuer Port 443 und den Port der Weboberflaeche unter 1024.
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+
+# --- Haertung ---------------------------------------------------------------
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectProc=invisible
+ProcSubset=pid
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictAddressFamilies=AF_INET AF_INET6
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @obsolete
+ReadOnlyPaths=/etc/schleuse
+# Zugriffsliste, Warteschlange und Benutzer werden im Betrieb geschrieben.
+StateDirectory=schleuse
+StateDirectoryMode=0700
+
+LimitNOFILE=65536
+MemoryMax=512M
+TasksMax=4096
+
+[Install]
+WantedBy=multi-user.target

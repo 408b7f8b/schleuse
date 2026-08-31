@@ -1,0 +1,74 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>schleuse</AssemblyName>
+    <RootNamespace>Schleuse</RootNamespace>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- Kein unsicherer Speicherzugriff, und die Analysen auf der schaerfsten
+         Stufe: was das Werkzeug finden kann, soll es finden. -->
+    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <!-- Sicherheit und Verlaesslichkeit auf der schaerfsten Stufe, Stilfragen
+         auf der ueblichen. "All" ueberall waere lauter Rauschen: es beanstandet
+         auch bewusste Entscheidungen wie das Auffangen aller Ausnahmen in einer
+         Dienstschleife, die genau dort richtig sind. -->
+    <AnalysisModeSecurity>All</AnalysisModeSecurity>
+    <AnalysisModeReliability>All</AnalysisModeReliability>
+
+    <!-- Vier Regeln sind hier ausgenommen. Jede mit Grund, damit beim naechsten
+         Durchsehen niemand raten muss:
+
+         CA5350  HMAC-SHA1. Steckt ausschliesslich in der Umsetzung von TOTP.
+                 RFC 6238 schreibt SHA-1 vor und jede Authenticator-App erwartet
+                 es; ein Wechsel machte die zweite Stufe unbenutzbar. Der Angriff
+                 auf SHA-1 ist eine Kollision, TOTP braucht aber die
+                 Urbildresistenz von HMAC - die ist unberuehrt.
+
+         CA5398  Fest gesetzte TLS-Fassung. Die Regel moechte die Vorgabe des
+                 Betriebssystems. Hier ist TLS 1.3 fest verdrahtet, und das ist
+                 strenger als jede Vorgabe - genau darum geht es.
+
+         CA2000  Besitzuebergabe. Sockets und Stroeme wechseln hier planmaessig
+                 den Besitzer (angenommene Verbindung an die Sitzung, Datenstrom
+                 an den wartenden Bediener). Die Regel kann dem nicht folgen und
+         CA2025  meldete an zweiundzwanzig Stellen Fehlalarm. Die Freigabe steht
+                 stattdessen in den finally-Zweigen, wo sie hingehoert.
+
+         CA2007  ConfigureAwait. Ein Konsolendienst hat keinen Synchronisierungs-
+                 kontext, an den zurueckzukehren waere. Die Aufrufe stehen
+                 trotzdem ueberall dort, wo sie etwas kosten koennten. -->
+    <NoWarn>$(NoWarn);CA5350;CA5398;CA2000;CA2025;CA2007</NoWarn>
+    <Version>1.0.0</Version>
+
+    <!-- Native AOT: ein einzelnes natives Binary, keine .NET-Runtime auf dem Zielgeraet.
+         Build-Voraussetzung auf dem Buildhost: clang, lld, zlib1g-dev -->
+    <PublishAot>true</PublishAot>
+    <StripSymbols>true</StripSymbols>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- Ausnahmetexte behalten: bei einem Fernwartungsdienst ist eine lesbare
+         Fehlermeldung im Log mehr wert als ein paar hundert Kilobyte. -->
+    <UseSystemResourceKeys>false</UseSystemResourceKeys>
+    <EventSourceSupport>false</EventSourceSupport>
+    <MetadataUpdaterSupport>false</MetadataUpdaterSupport>
+    <NativeDebugSymbols>false</NativeDebugSymbols>
+    <IlcOptimizationPreference>Size</IlcOptimizationPreference>
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="src/**/*.cs" />
+    <!-- Kestrel fuer die Weboberflaeche. Einen HTTP-Server fuer ein
+         Verwaltungspanel im Internet selbst zu schreiben waere die falsche
+         Sparsamkeit; das kostet rund 2 MB im Binary. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+</Project>

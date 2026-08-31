@@ -1,0 +1,19 @@
+{
+  "relay": "tunnel.example.com:443",
+
+  "ca":   "/etc/schleuse/ca.crt",
+  "cert": "/etc/schleuse/device-werk1-hmi.crt",
+  "key":  "/etc/schleuse/device-werk1-hmi.key",
+
+  "services": {
+    "ssh":   "127.0.0.1:22",
+    "http":  "127.0.0.1:80",
+    "https": "127.0.0.1:443"
+  },
+
+  "max_streams": 32,
+  "dial_timeout_sec": 5,
+  "reconnect_min_sec": 1,
+  "reconnect_max_sec": 60,
+  "control_timeout_sec": 120
+}

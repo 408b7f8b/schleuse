@@ -1,0 +1,23 @@
+{
+  // Zugelassene Geraete. Nur wer hier steht, darf sich anmelden - ein
+  // Zertifikat der eigenen CA allein genuegt nicht.
+  // Faellt dieser Abschnitt weg, ist die Anmeldung fuer jedes Zertifikat der
+  // CA offen; der Relay weist beim Start deutlich darauf hin.
+  "devices": {
+    "werk1-hmi":        { "note": "Halle 2, IPC hinter Schaltschrank 4" },
+    "werk2-hmi":        { "note": "Halle 5" },
+    "pumpstation-nord": {}
+  },
+
+  "clients": {
+    "db":         { "devices": ["*"],       "services": ["*"] },
+    "monteur1":   { "devices": ["werk1-*"], "services": ["ssh", "http"] },
+    "auswertung": { "devices": ["*"],       "services": ["http"] }
+  },
+
+  // Sofort wirksamer Entzug, auch fuer laufende Sitzungen.
+  "revoked": [
+    "client:ex-monteur",
+    "device:ausgemustert-01"
+  ]
+}
