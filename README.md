@@ -1,5 +1,7 @@
 # schleuse — Reverse-Tunnel für Linux-Geräte
 
+**Deutsch** · [English](README.en.md)
+
 Zugriff auf Geräte hinter NAT und Firewall, ohne dort einen Port zu öffnen.
 Das Gerät baut selbst eine ausgehende TLS-Verbindung zu einem Relay im Internet
 auf; über dieselbe Verbindung wird auf Anforderung SSH, SCP, HTTP oder jedes
@@ -10,26 +12,29 @@ Warteschlange und wird im Browser freigegeben. Ein Binary, keine
 Laufzeit-Abhängigkeiten.
 
 ```
-        Anlagennetz                   Internet                    Bediener
+        Anlagennetz                          Internet                  Bediener
 
-  ┌───────────────────┐                                    ┌────────────────────┐
-  │ werk1-hmi         │                                    │  ein schleuse client   │
-  │  sshd :22  ──┐    │─┐                                  │                    │
-  │  httpd :80 ──┤    │ │                                  │  :2201 → werk1/ssh │
-  │      schleuse agent ──┼─┤                                  │  :8001 → werk1/http│
-  └───────────────────┘ │       ┌───────────────┐          │  :2202 → werk2/ssh │
-  ┌───────────────────┐ │       │     relay     │          │  :5021 → werk2/mb  │
-  │ werk2-hmi         │ ├───────▶  :443  Tunnel ◀──────────┤                    │
-  │  sshd, httpd,     │ │ausgeh.│         + Selbstanmeldung│  alles gleichzeitig│
-  │  modbus :502      │ │  TLS  │  :8443 Weboberfläche     │                    │
-  │      schleuse agent ──┼─┘       └───────▲───────┘          └────────────────────┘
-  └───────────────────┘                 │ Passwort + 2FA
-  ┌───────────────────┐                 │
-  │ neues Gerät       │─ Antrag ─┐  ┌───┴────────────┐
-  │   schleuse enroll ────┼──────────┴─▶│  Warteschlange │──── freigeben ──▶ Betrieb
-  └───────────────────┘             └────────────────┘
-     kein offener Port      einziger offener Port         kein offener Port
-                            für Geräte                    (nur loopback)
+  ┌──────────────────────┐                                     ┌──────────────────────┐
+  │ werk1-hmi            │                                     │  ein schleuse client │
+  │   sshd :22           │                                     │                      │
+  │   httpd :80          │                                     │  :2201 → werk1/ssh   │
+  │   schleuse agent ────┼───┐                                 │  :8001 → werk1/http  │
+  └──────────────────────┘   │                                 │  :2202 → werk2/ssh   │
+                             │         ┌───────────────────┐   │  :5021 → werk2/mb    │
+  ┌──────────────────────┐   │         │       relay       │   │                      │
+  │ werk2-hmi            │   ├────────▶│  :443   Tunnel    │◀──┤  alles gleichzeitig  │
+  │   sshd, httpd,       │   │ ausgeh. │  Selbstanmeldung  │   └──────────────────────┘
+  │   modbus :502        │   │   TLS   │  :8443 Oberfläche │
+  │   schleuse agent ────┼───┘         └─────────▲─────────┘
+  └──────────────────────┘                       │ Passwort + 2FA
+                                                 │
+  ┌──────────────────────┐             ┌─────────┴─────────┐
+  │ neues Gerät          │  Antrag     │   Warteschlange   │
+  │   schleuse enroll ───┼────────────▶│                   ├─── freigeben ──▶ Betrieb
+  └──────────────────────┘             └───────────────────┘
+
+     kein offener Port                 einziger offener Port      kein offener Port
+                                       für Geräte                 (nur loopback)
 ```
 
 Beliebig viele Geräte, je mit beliebig vielen Diensten, alle gleichzeitig. Jede
@@ -104,46 +109,8 @@ Der Relay ist damit *Vermittler, nicht Vertrauensanker*: Wer ihn übernimmt, kan
 Verbindungen verweigern, Metadaten sehen und Gerätezertifikate ausstellen — aber
 sich weder als Bediener ausgeben noch SSH-Verkehr mitlesen.
 
-## Gefundene und behobene Schwachstellen
-
-Beim Durchsehen des Codes sind fünf Punkte aufgefallen. Alle sind behoben und
-durch die Testsuiten abgedeckt:
-
-1. **Die Handshake-Drossel wurde über die gesamte Sitzungsdauer gehalten.** Ab
-   256 angemeldeten Geräten hätte der Relay keine neue Verbindung mehr
-   angenommen. Der Platz wird jetzt direkt nach dem Handshake freigegeben.
-2. **Eine Sperre wirkte nur auf neue Verbindungen.** Ein Reload beendet nun auch
-   laufende Sitzungen, deren Berechtigung weggefallen ist.
-3. **Keine Bindung der Schlüsselverwendung.** Server- und Client-Authentisierung
-   sind jetzt getrennt erzwungen, damit ein Gerätezertifikat auch mit passendem
-   Hostnamen keinen Relay vortäuschen kann.
-4. **Zertifikatsnamen gingen ungeprüft ins Log.** Text aus fremder Hand wird
-   jetzt entschärft.
-5. **Ausgestellte Zertifikate begannen fünf Minuten vor der ausstellenden CA.**
-   Eine frisch angelegte Zwischen-CA konnte deshalb ihr erstes Gerät nicht
-   freigeben. Gültigkeitszeitraum wird jetzt an dem der CA beschnitten.
-6. **Die Bremse der Schnittstelle sperrte die Herkunft statt den Fehlversuch.**
-   Hinter einem NAT hätte ein einziger Störer alle anderen mit ausgesperrt. Eine
-   gültige Marke kommt jetzt immer durch; verzögert wird nur der Fehlversuch.
-7. **Lesen-Ändern-Schreiben auf der Zugriffsliste war nicht zusammenhängend.**
-   Zwei gleichzeitige Änderungen — eine aus der Oberfläche, eine über die
-   Schnittstelle — konnten sich überschreiben. Ausgerechnet eine verlorene
-   Sperre wäre so ein Fall gewesen. Jetzt unter einem Schloss.
-8. **Das Zertifikat der Oberfläche wurde nur beim Start geladen.** Ein von
-   certbot erneuertes wäre erst beim nächsten Neustart wirksam geworden — und
-   spätestens nach neunzig Tagen hätte der Browser gewarnt.
-9. **Eingaben der Schnittstelle waren unbegrenzt.** Notizen und Muster gingen
-   ungeprüft in die Zugriffsliste; jetzt gekürzt, von Steuerzeichen befreit und
-   auf brauchbare Zeichen beschränkt.
-10. **Eine Prüfung auf unbekannte Benutzer kostete zwei PBKDF2-Durchgänge**
-    statt einem — doppelte Rechenlast je Fehlversuch, also doppelt so wirksam
-    als Hebel für eine Überlastung. Der Vergleichswert wird jetzt einmal beim
-    Start gebildet.
-11. **Die Geräteliste war offen, wenn sie fehlte.** Das war nicht „secure by
-    default"; jetzt darf sich ohne Eintrag niemand anmelden.
-
-Zusätzlich wird die Konfiguration streng gelesen: ein Tippfehler in `services`
-oder `devices` bricht den Start ab, statt still zu einer leeren Liste zu werden.
+Die Konfiguration wird streng gelesen: ein Tippfehler in `services` oder
+`devices` bricht den Start ab, statt still zu einer leeren Liste zu werden.
 
 ## Bauen
 
@@ -156,7 +123,9 @@ Ergebnis: `out/<rid>/schleuse`, rund 12 MB. Auf dem Zielgerät wird keine
 .NET-Runtime gebraucht. Querbauen für eine andere Architektur braucht `clang`; fehlt es, weicht
 `build.sh` selbsttätig auf ein self-contained Single-File-Bundle aus (rund
 20 MB, läuft ebenso ohne vorinstallierte Runtime). Dasselbe gilt für
-32-bit-ARM, für das es kein Native AOT gibt.
+32-bit-ARM, für das es kein Native AOT gibt. Ein solches Bundle bringt einen
+JIT mit und lässt sich darum nicht mit `MemoryDenyWriteExecute=yes` betreiben —
+die Zeile muss dann aus der systemd-Einheit.
 
 ## Einrichten
 
@@ -486,133 +455,6 @@ aus; und der Speicher wird nach Lastspitzen nur langsam an das Betriebssystem
 zurückgegeben, die Zahlen oben sind also Höchststände, nach denen zu bemessen
 ist.
 
-## Cyber Resilience Act
-
-**Die Einstufung zuerst, weil sie über alles Weitere entscheidet.** schleuse trifft
-gleich drei Kategorien der Anhang-III-Klasse I („wichtige Produkte"):
-*VPN-Produkte* (Nr. 5), *Netzwerkverwaltungssysteme* (Nr. 6) und — am
-eindeutigsten — *Software zur Ausstellung digitaler Zertifikate* (Nr. 9), denn
-der Relay stellt Gerätezertifikate aus.
-
-### Konformitätsweg für Klasse I
-
-Eine Zertifizierung durch eine benannte Stelle ist **nicht** zwingend. Art. 32
-Abs. 2 lässt für Klasse I die interne Kontrolle (Modul A, Eigenerklärung) zu —
-aber nur, wenn harmonisierte Normen, gemeinsame Spezifikationen oder ein
-EU-Zertifizierungsschema auf Stufe „substanziell" **vollständig** angewandt
-werden und die einschlägigen Anforderungen abdecken. Nur teilweise angewandt,
-nicht vorhanden oder nicht abdeckend, dann bleibt Modul B+C
-(EU-Baumusterprüfung) oder Modul H (umfassende Qualitätssicherung) — beides mit
-benannter Stelle. Der Unterschied zu Klasse II liegt genau hier: dort steht
-Modul A gar nicht erst zur Wahl.
-
-**Der Haken ist der Zeitplan.** Bislang ist keine CRA-Norm im Amtsblatt
-zitiert; die Konformitätsvermutung besteht also noch für kein Produkt. Es sind
-zwei Tore hintereinander: ETSI muss die Norm veröffentlichen, und die
-Kommission muss sie im Amtsblatt zitieren. Erst das zweite zählt rechtlich —
-der Entwurf sagt es selbst: *„Once the present document is cited in the
-Official Journal … compliance … confers … a presumption of conformity."*
-
-| Norm | deckt ab | Stand (August 2026) |
-|---|---|---|
-| EN 304 620 | VPN-Produkte | **Entwurf** V1.0.0, kombinierte Umfrage- und Abstimmungsphase |
-| EN 304 621 | Netzwerkverwaltungssysteme | Entwurf, öffentliche Umfrage |
-| EN 304 624 | PKI und Zertifikatsausstellung | Entwurf, öffentliche Umfrage |
-| EN 40000-1-3 | Umgang mit Schwachstellen (horizontal) | Umfrage abgeschlossen |
-| EN 40000-1-4 | allgemeine Sicherheitsanforderungen (horizontal) | in Arbeit, Liefertermin Oktober 2027 |
-
-Die Entwürfe tragen bereits die Kopfzeile „Harmonised European Standard" und
-sind unter dem Normungsauftrag C(2025)618 entstanden — das ist die Bauart des
-Dokuments, nicht sein Status. Auf dem Deckblatt steht „Draft".
-
-„Vollständig angewandt" heißt: alle einschlägigen, nicht die bequemste. Drei
-vertikale Normen sind mehr Arbeit als eine.
-
-### Die Einstufung ist inzwischen nachlesbar
-
-Seit der **Durchführungsverordnung (EU) 2025/2392 vom 28. November 2025** gibt
-es verbindliche technische Beschreibungen der Anhang-III-Kategorien. Die
-Einstufung gehört dagegen geprüft und schriftlich festgehalten, nicht gegen die
-Kategorienamen. Kategorie 5 lautet dort:
-
-> Produkte mit digitalen Elementen, die einen verschlüsselten logischen Tunnel
-> herstellen, der aus den Systemressourcen eines physischen oder virtuellen
-> Netzes gebildet wird.
-
-Darauf passt schleuse der Sache nach, auch wenn es kein VPN im hergebrachten Sinn
-ist: es gibt keine virtuelle Netzwerkschnittstelle und kein Routing, sondern
-weitergeleitete TCP-Verbindungen. Der Anwendungsbereich von EN 304 620 nennt
-ausdrücklich Software als VPN-Endpunkt, als Server und als „remote data
-processing" — Agent und Relay lassen sich darunter fassen. Wer anders
-entscheidet, sollte die Begründung aufschreiben; eine Einstufung, die niemand
-nachvollziehen kann, ist im Streitfall keine.
-
-**Ein Hebel, der in eurer Hand liegt:** Kategorie 9 kommt allein durch die
-Selbstanmeldung ins Spiel — der Relay stellt nur dann Zertifikate aus, wenn der
-Abschnitt `enrollment` gesetzt ist. Ohne ihn verwaltet die Oberfläche bloß und
-schleuse ist keine Zertifikatsausstellungs-Software mehr. Wer den Aufwand klein
-halten will, liefert die Selbstanmeldung abgeschaltet aus oder trennt sie ab und
-stellt Gerätezertifikate weiter offline mit `schleuse-pki.sh` aus.
-
-Auch bei Modul A bleibt die Substanz gleich: technische Dokumentation nach
-Anhang VII, Risikobeurteilung, Prozesse für den Umgang mit Schwachstellen. Es
-entfällt nur der Dritte.
-
-**Ob das überhaupt greift, hängt am Vertriebsweg.** Der CRA bindet den
-Hersteller, der ein Produkt *auf dem Markt bereitstellt*. Wer schleuse
-ausschließlich für die eigenen Anlagen betreibt, stellt nichts bereit — dann
-gelten die Herstellerpflichten nicht. Sobald es mit Maschinen ausgeliefert, in
-ein Produkt eingebaut oder Kunden zur Verfügung gestellt wird, gelten sie.
-Diese Frage gehört beantwortet, bevor der Aufwand geschätzt wird.
-
-**Termine:** Meldepflichten für aktiv ausgenutzte Schwachstellen ab
-**11. September 2026** (24 h Frühwarnung, 72 h Meldung, 14 Tage Abschluss),
-der Rest ab **11. Dezember 2027**.
-
-### Was der Code bereits erfüllt
-
-| Anhang I Teil I | Stand |
-|---|---|
-| Sichere Voreinstellung (1c) | Ohne Eintrag in der Geräteliste darf sich **niemand** anmelden; die offene Betriebsart ist ein ausdrücklicher Schalter |
-| Zugangsschutz (2a) | mTLS beidseitig, Rollentrennung durch den Aussteller erzwungen, ACL je Bediener, Passwort + zweiter Faktor, Marken mit Rolle |
-| Vertraulichkeit (2b) | TLS 1.3; Schlüssel 0600, Zustandsverzeichnis 0700; Passwörter als PBKDF2, Marken als SHA-256 |
-| Integrität (2c) | Unteilbares Schreiben aller Zustandsdateien; strenges Lesen der Konfiguration — ein Tippfehler bricht den Start ab |
-| Datensparsamkeit (2d) | Keine Nutzdaten protokolliert; Anträge samt Herkunft nach 30 Tagen verworfen |
-| Verfügbarkeit (2e) | Handshake-Drossel, Sitzungsbudgets je Gerät und je Bediener, begrenzte Warteschlange, wachsende Bremse bei Fehlversuchen, begrenzte Rumpfgröße |
-| Angriffsfläche (2g) | Ein Port für Geräte; Verwaltung getrennt und abschaltbar; keine Selbstauskunft der Schnittstelle |
-| Schadensbegrenzung (2h) | Kein JIT, kein beschreibbarer ausführbarer Speicher, keine unsicheren Speicherzugriffe, systemd-Härtung |
-| Protokollierung (2i) | Jede Anmeldung, Abweisung und Änderung mit Urheber und Herkunft; Aufbewahrung und Abschaltung über journald |
-| Sicheres Löschen (2j) | Verfahren in [SECURITY.md](SECURITY.md) |
-
-| Anhang I Teil II | Stand |
-|---|---|
-| Stückliste (1) | `./scripts/sbom.sh` erzeugt `sbom.cdx.json` im CycloneDX-Format aus dem echten Abhängigkeitsgraphen |
-| Prüfungen (3) | Fünf Suiten mit 147 Prüfungen und die Nachrechnung der Krypto-Bausteine gegen ihre Spezifikationen |
-| Meldeweg (5, 6) | Politik zur koordinierten Offenlegung in [SECURITY.md](SECURITY.md) |
-
-### Was noch offen ist
-
-Das sind keine Codefragen, sondern Aufgaben des Herstellers:
-
-* **Vertriebsweg klären** — davon hängt ab, ob überhaupt etwas davon greift.
-* **Kontaktadresse und Unterstützungszeitraum eintragen.** In
-  [SECURITY.md](SECURITY.md) stehen Platzhalter; ohne beides ist Anhang II
-  nicht erfüllt.
-* **Freigaben signieren.** Das Verfahren steht in SECURITY.md, der Schlüssel
-  fehlt noch. Ohne Signatur gibt es keine sichere Verteilung (Teil II Nummer 7).
-* **Risikobeurteilung schreiben** (Art. 13 Abs. 2) und der technischen
-  Dokumentation beilegen. Das Sicherheitsmodell oben ist die Vorarbeit dazu,
-  aber keine Beurteilung.
-* **Konformitätsweg wählen** — siehe oben. Solange keine Norm im Amtsblatt
-  steht, ist Modul A praktisch versperrt; die Pflichten greifen ab Dezember 2027
-  unabhängig davon, ob es bis dahin eine gibt.
-* **Meldeprozess einrichten**, der die 24-Stunden-Frist ab September 2026 halten
-  kann — inklusive Zugang zur einheitlichen Meldeplattform.
-* **CE-Kennzeichnung und EU-Konformitätserklärung** vorbereiten.
-
-Diese Einschätzung stammt aus dem Verordnungstext und der öffentlichen
-Auslegung; sie ersetzt keine rechtliche Prüfung.
-
 ## Grenzen
 
 * **Ein lokaler Port ist für jeden auf dem Rechner offen.** Wer sich am Notebook
@@ -651,6 +493,5 @@ Auslegung; sie ersetzt keine rechtliche Prüfung.
 | `src/Config.cs` | Konfiguration, Zugriffsliste, Glob-Muster |
 
 Daneben: [SECURITY.md](SECURITY.md) mit Meldeweg, Unterstützungszeitraum,
-Protokollierung und Löschverfahren, [BETRIEB.md](BETRIEB.md) mit der laufenden
-Installation, [TODO.md](TODO.md) mit den offenen Punkten, sowie
-`sbom.cdx.json` als Stückliste.
+Protokollierung und Löschverfahren, [TODO.md](TODO.md) mit den offenen
+Punkten, sowie `sbom.cdx.json` als Stückliste.

@@ -2,18 +2,15 @@
 
 ## Natives AOT-Binary für arm64
 
-**Stand:** Auf dem Relay (Raspberry Pi 3, `relais.local`) läuft ein
-self-contained Single-File-Bundle mit JIT: 20 MB auf der Platte, 46 MB
-Arbeitsspeicher. Das Querbauen eines nativen Binarys braucht `clang` und `lld`,
-die auf dem Entwicklungsrechner fehlen.
+**Stand:** Fehlt `clang` auf dem bauenden Rechner, weicht `build.sh` für arm64
+auf ein self-contained Single-File-Bundle mit JIT aus — rund 20 MB statt 12 auf
+der Platte und spürbar mehr Arbeitsspeicher zur Laufzeit.
 
-**Folge:** Die systemd-Einheit musste `MemoryDenyWriteExecute=yes` ablegen — ein
-JIT braucht beschreibbaren ausführbaren Speicher. Damit fehlt eine Schutzlage,
-die für alle anderen Rollen greift.
-
-**Warum es noch fehlt:** `apt install` braucht Rechte, die dieser Arbeitsgang
-nicht hat. Ohne Root lässt sich das nicht nachholen; ein von Hand entpacktes
-clang wäre eine Bastelei, die beim nächsten Systemwechsel bricht.
+**Folge:** Ein solches Bundle lässt sich nicht mit
+`MemoryDenyWriteExecute=yes` betreiben; ein JIT braucht beschreibbaren
+ausführbaren Speicher. Wer es einsetzt, nimmt die Zeile aus der systemd-Einheit
+und verliert damit eine Schutzlage, die beim nativen Binary greift. Für
+32-bit-ARM gibt es kein Native AOT, dort bleibt es dabei.
 
 **Wie es geht:**
 
@@ -41,8 +38,9 @@ gibt es die Zielumgebung ohnehin, nötig ist nur das .NET-SDK.
 ## Wo die übrigen offenen Punkte stehen
 
 * **Cyber Resilience Act** — Vertriebsweg klären, Einstufung gegen die
-  Durchführungsverordnung (EU) 2025/2392 schriftlich festhalten, Konformitätsweg
-  wählen: Abschnitt *Cyber Resilience Act* in [README.md](README.md).
+  Durchführungsverordnung (EU) 2025/2392 schriftlich festhalten,
+  Konformitätsweg wählen. Gehört in die technische Dokumentation, nicht in
+  das README.
 * **Kontaktadresse, Unterstützungszeitraum, Signaturschlüssel für Freigaben** —
   Platzhalter in [SECURITY.md](SECURITY.md).
 
