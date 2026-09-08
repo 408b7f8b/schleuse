@@ -71,9 +71,9 @@ $C -X POST -d "csrf=$CSRF&code=$(python3 totp.py "$SECRET")" -o /dev/null "$B/lo
 
 CSRF=$($C "$B/tokens" | grep -oP 'name="csrf" value="\K[0-9a-f]+' | head -1)
 ADMIN=$($C -X POST -d "csrf=$CSRF&name=verwalten&role=Admin&days=0" "$B/tokens/create" \
-        | grep -oP 'Marke angelegt: \Kschleuse_[A-Z2-7]+')
+        | grep -oP 'Token created: \Kschleuse_[A-Z2-7]+')
 LESEN=$($C -X POST -d "csrf=$CSRF&name=lesen&role=Viewer&days=0" "$B/tokens/create" \
-        | grep -oP 'Marke angelegt: \Kschleuse_[A-Z2-7]+')
+        | grep -oP 'Token created: \Kschleuse_[A-Z2-7]+')
 [ -n "$ADMIN" ] && [ -n "$LESEN" ] && ok "Marken über die Oberfläche angelegt" || bad "Marken angelegt"
 
 A="curl -sk -H 'Authorization: Bearer '"

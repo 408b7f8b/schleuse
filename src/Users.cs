@@ -79,10 +79,10 @@ internal sealed class UserStore(string path)
 
     public WebUser Anlegen(string name, string passwort, WebRole rolle, bool mussAendern)
     {
-        if (!IstBrauchbarerName(name)) throw new InvalidOperationException("unbrauchbarer Benutzername");
+        if (!IstBrauchbarerName(name)) throw new InvalidOperationException("unusable user name");
         lock (_gate)
         {
-            if (_datei.Users.ContainsKey(name)) throw new InvalidOperationException($"'{name}' gibt es schon");
+            if (_datei.Users.ContainsKey(name)) throw new InvalidOperationException($"'{name}' already exists");
             var u = new WebUser
             {
                 Name = name,
@@ -103,7 +103,7 @@ internal sealed class UserStore(string path)
         {
             if (!_datei.Users.TryGetValue(name, out var u)) return;
             if (u.Role == WebRole.Admin && _datei.Users.Values.Count(x => x.Role == WebRole.Admin) <= 1)
-                throw new InvalidOperationException("der letzte Verwalter kann nicht geloescht werden");
+                throw new InvalidOperationException("the last administrator cannot be deleted");
             _datei.Users.Remove(name);
             Speichern();
         }
@@ -113,7 +113,7 @@ internal sealed class UserStore(string path)
     {
         lock (_gate)
         {
-            if (!_datei.Users.TryGetValue(name, out var u)) throw new InvalidOperationException("unbekannter Benutzer");
+            if (!_datei.Users.TryGetValue(name, out var u)) throw new InvalidOperationException("unknown user");
             was(u);
             Speichern();
         }
@@ -139,7 +139,7 @@ internal sealed class UserStore(string path)
                 return (false, null);
             }
             if (u.Gesperrt(jetzt))
-                return (false, $"Zugang gesperrt bis {u.LockedUntil:HH:mm} UTC");
+                return (false, $"Account locked until {u.LockedUntil:HH:mm} UTC");
 
             if (!Passwords.Verify(u.Password, passwort))
             {

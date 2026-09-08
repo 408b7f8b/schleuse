@@ -73,10 +73,10 @@ code=$(curl -sk -o /dev/null -w '%{http_code}' "https://127.0.0.1:$WEB/users")
 check "geschützte Seite leitet zur Anmeldung" "$code" "302"
 out=$(curl -sk -X POST -d "csrf=x&user=y" "https://127.0.0.1:$WEB/users/add" -o /dev/null -w '%{http_code}')
 check "Änderung ohne Sitzung wird abgewiesen" "$out" "302"
-out=$(holen /setup | grep -c "<h1>Ersteinrichtung")
+out=$(holen /setup | grep -c "<h1>Initial setup")
 check "Ersteinrichtung erreichbar" "$out" "1"
 out=$(curl -sk -X POST -d "token=FALSCH&user=x&pw=abcdefghijkl&pw2=abcdefghijkl" \
-      "https://127.0.0.1:$WEB/setup" | grep -c "Kennwort stimmt nicht")
+      "https://127.0.0.1:$WEB/setup" | grep -c "setup password is not correct")
 check "falsches Einrichtungskennwort wird abgewiesen" "$out" "1"
 
 # --- Ersteinrichtung ---------------------------------------------------------
@@ -100,17 +100,17 @@ else
 	bad "QR-Code für den zweiten Faktor steht auf der Seite" "viewBox-Kante '$KANTE'"
 fi
 
-out=$($C -X POST -d "csrf=$CSRF&code=000000" "https://127.0.0.1:$WEB/login/2fa-neu" | grep -c "stimmt nicht")
+out=$($C -X POST -d "csrf=$CSRF&code=000000" "https://127.0.0.1:$WEB/login/2fa-neu" | grep -c "not correct")
 check "falscher Code wird abgewiesen" "$out" "1"
 
 CODE=$(python3 totp.py "$SECRET")
 $C -X POST -d "csrf=$CSRF&code=$CODE" -o /dev/null "https://127.0.0.1:$WEB/login/2fa-neu"
 konto=$(holen /account)
-n=$(echo "$konto" | grep -c "Wiederherstellungscodes")
+n=$(echo "$konto" | grep -c "Recovery codes")
 [ "$n" -ge 1 ] && ok "zweiter Faktor eingerichtet, Codes angezeigt" || bad "zweiter Faktor eingerichtet, Codes angezeigt"
 RECOVERY=$(echo "$konto" | grep -oP '<li>\K[A-Z2-7-]+' | head -1)
 [ -n "$RECOVERY" ] && ok "Wiederherstellungscodes vorhanden" || bad "Wiederherstellungscodes vorhanden"
-n=$(holen /account | grep -c "Wiederherstellungscodes</h2>")
+n=$(holen /account | grep -c "Recovery codes</h2>")
 check "Codes werden nur einmal gezeigt" "$n" "0"
 
 # --- Absicherung nach der Anmeldung -----------------------------------------
@@ -124,7 +124,7 @@ check "Benutzerliste zeigt den Verwalter" "$n" "1"
 
 # --- Selbstanmeldung eines Geraets ------------------------------------------
 echo "== Selbstanmeldung =="
-n=$(holen /pending | grep -c "Zurzeit wartet nichts")
+n=$(holen /pending | grep -c "Nothing is waiting right now")
 check "Warteschlange ist zunächst leer" "$n" "1"
 
 mkdir geraet
@@ -155,7 +155,7 @@ ID=$(echo "$seite" | grep -oP 'name="id" value="\K[0-9a-f]+' | head -1)
 CSRF=$(echo "$seite" | csrf)
 $C -X POST -d "csrf=$CSRF&id=$ID&device=werk9&note=Halle+3&svc=http" \
    -o freigabe.html "https://127.0.0.1:$WEB/pending/approve"
-n=$(grep -c "ist freigegeben" freigabe.html)
+n=$(grep -c "is approved" freigabe.html)
 check "Freigabe bestätigt" "$n" "1"
 n=$(holen /devices | grep -c "werk9")
 [ "$n" -ge 1 ] && ok "Gerät steht jetzt in der Geräteliste" || bad "Gerät steht jetzt in der Geräteliste"
@@ -211,7 +211,7 @@ n=$(grep -c "gesperrt, Anmeldung wird beendet" relay.log)
 echo "== Rollen =="
 seite=$(holen /users); CSRF=$(echo "$seite" | csrf)
 $C -X POST -d "csrf=$CSRF&user=gast&role=Viewer" -o neu.html "https://127.0.0.1:$WEB/users/add"
-GASTPW=$(grep -oP 'Anfangspasswort: \K[A-Z2-7-]+' neu.html | head -1)
+GASTPW=$(grep -oP 'Initial password: \K[A-Z2-7-]+' neu.html | head -1)
 [ -n "$GASTPW" ] && ok "Anfangspasswort wird einmalig angezeigt" || bad "Anfangspasswort wird einmalig angezeigt"
 
 G="curl -sk -c $W/gastjar -b $W/gastjar"
@@ -220,12 +220,12 @@ seite=$($G "https://127.0.0.1:$WEB/login/2fa-neu")
 GSECRET=$(echo "$seite" | grep -oP '<p class="fp">\K[A-Z2-7-]+' | head -1)
 GCSRF=$(echo "$seite" | csrf)
 $G -X POST -d "csrf=$GCSRF&code=$(python3 totp.py "$GSECRET")" -o /dev/null "https://127.0.0.1:$WEB/login/2fa-neu"
-n=$($G "https://127.0.0.1:$WEB/devices" | grep -c "nur lesen")
+n=$($G "https://127.0.0.1:$WEB/devices" | grep -c "read only")
 [ "$n" -ge 1 ] && ok "Gast ist angemeldet und als nur-lesend gekennzeichnet" || bad "Gast ist angemeldet"
 
 GCSRF=$($G "https://127.0.0.1:$WEB/devices" | csrf)
 n=$($G -X POST -d "csrf=$GCSRF&device=werk9&note=verstellt" \
-      "https://127.0.0.1:$WEB/devices/save" | grep -c "<h1>Nicht erlaubt")
+      "https://127.0.0.1:$WEB/devices/save" | grep -c "<h1>Not allowed")
 check "Gast darf nichts ändern" "$n" "1"
 n=$(holen /devices | grep -c "verstellt")
 check "die Änderung des Gasts kam nicht durch" "$n" "0"
@@ -235,7 +235,7 @@ echo "== Durchprobieren =="
 for i in 1 2 3 4 5 6; do
   curl -sk -o /dev/null -X POST -d "user=gast&pw=falsch$i" "https://127.0.0.1:$WEB/login"
 done
-out=$(curl -sk -X POST -d "user=gast&pw=$GASTPW" "https://127.0.0.1:$WEB/login" | grep -c "gesperrt bis")
+out=$(curl -sk -X POST -d "user=gast&pw=$GASTPW" "https://127.0.0.1:$WEB/login" | grep -c "locked until")
 check "nach fünf Fehlversuchen wird der Zugang gesperrt" "$out" "1"
 n=$(grep -c "Anmeldung fehlgeschlagen" relay.log)
 [ "$n" -ge 6 ] && ok "Fehlversuche werden protokolliert" || bad "Fehlversuche werden protokolliert" "$n"

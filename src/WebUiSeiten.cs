@@ -7,7 +7,7 @@ namespace Schleuse;
 internal sealed partial class WebUi
 {
     static string Csrf(WebSession s) => $"""<input type="hidden" name="csrf" value="{Html.E(s.Csrf)}">""";
-    static string Zeit(DateTimeOffset t) => t.ToLocalTime().ToString("dd.MM.yyyy HH:mm");
+    static string Zeit(DateTimeOffset t) => t.ToLocalTime().ToString("yyyy-MM-dd HH:mm");
 
     // -- Warteschlange -------------------------------------------------------
 
@@ -18,18 +18,18 @@ internal sealed partial class WebUi
 
         if (relay.Pending is null)
         {
-            await Sende(c, Html.Seite("Warteschlange", s, """
-                <h1>Warteschlange</h1>
-                <p class="lead">Die Selbstanmeldung ist nicht eingerichtet.</p>
+            await Sende(c, Html.Seite("Queue", s, """
+                <h1>Queue</h1>
+                <p class="lead">Self enrollment is not set up.</p>
                 <div class="karte">
-                <p>Damit sich Geräte selbst anmelden können, braucht der Relay eine
-                   Zwischen-CA. Sie wird einmalig auf einem sicheren Rechner erzeugt:</p>
+                <p>For devices to enrol themselves, the relay needs an intermediate
+                   CA. It is created once on a secure machine:</p>
                 <pre>./schleuse-pki.sh device-ca</pre>
-                <p>Danach <code>device-ca.crt</code> und <code>device-ca.key</code> auf den
-                   Relay legen und in <code>relay.json</code> eintragen:</p>
+                <p>Then put <code>device-ca.crt</code> and <code>device-ca.key</code> on the
+                   relay and name them in <code>relay.json</code>:</p>
                 <pre>"enrollment": { "ca": "device-ca.crt", "key": "device-ca.key" }</pre>
-                <p class="schwach">Der Schlüssel der Wurzel-CA bleibt dabei offline. Die
-                   Zwischen-CA kann nur Geräte ausstellen, keine Zugänge.</p>
+                <p class="schwach">The root CA key stays offline while doing this. The
+                   intermediate CA can only issue devices, never access accounts.</p>
                 </div>
                 """, hinweis, fehler)).ConfigureAwait(false);
             return;
@@ -43,21 +43,21 @@ internal sealed partial class WebUi
 
         var inhalt = new System.Text.StringBuilder();
         inhalt.Append($"""
-            <h1>Warteschlange</h1>
-            <p class="lead">Neu angemeldete Geräte warten hier. Solange sie warten, haben
-               sie kein Zertifikat und erreichen nichts.</p>
+            <h1>Queue</h1>
+            <p class="lead">Newly enrolled devices wait here. While they wait they hold
+               no certificate and reach nothing.</p>
             """);
 
         if (offen.Count == 0)
-            inhalt.Append("""<p class="schwach">Zurzeit wartet nichts.</p>""");
+            inhalt.Append("""<p class="schwach">Nothing is waiting right now.</p>""");
 
         foreach (var r in offen)
         {
             var vorschlag = Vorschlag(r.Hostname);
             var dienste = r.Proposed.Count == 0
                 ? """
-                  <p class="schwach">Das Gerät hat keine Dienste vorgeschlagen. Es kann dann
-                     nichts anbieten, bis seine Konfiguration ergänzt wird.</p>
+                  <p class="schwach">The device proposed no services. It can offer
+                     nothing until its configuration is extended.</p>
                   """
                 : string.Concat(r.Proposed.Select(kv => $"""
                     <label style="display:inline-block;margin-right:1.2rem">
@@ -69,31 +69,31 @@ internal sealed partial class WebUi
 
             inhalt.Append($"""
                 <div class="karte">
-                  <p class="schwach">Fingerabdruck des Schlüssels &mdash; muss mit dem übereinstimmen,
-                     den das Gerät beim Anmelden angezeigt hat</p>
+                  <p class="schwach">Fingerprint of the key &mdash; must match the one the
+                     device showed while enrolling</p>
                   <p class="fp">{Html.E(r.Fingerprint)}</p>
                   <table>
-                    <tr><th>Selbstauskunft</th><td>{Html.E(r.Hostname ?? "(keine)")}</td></tr>
-                    <tr><th>Herkunft</th><td class="mono">{Html.E(r.From)}</td></tr>
-                    <tr><th>Seit</th><td>{Zeit(r.FirstSeen)}</td></tr>
+                    <tr><th>Self report</th><td>{Html.E(r.Hostname ?? "(none)")}</td></tr>
+                    <tr><th>Origin</th><td class="mono">{Html.E(r.From)}</td></tr>
+                    <tr><th>Since</th><td>{Zeit(r.FirstSeen)}</td></tr>
                   </table>
                   <form method="post" action="/pending/approve">
                     {Csrf(s)}
                     <input type="hidden" name="id" value="{Html.E(r.Id)}">
-                    <label>Name des Geräts</label>
+                    <label>Device name</label>
                     <input type="text" name="device" class="klein" value="{Html.E(vorschlag)}"
                            maxlength="64" pattern="[A-Za-z0-9._-]+" required>
-                    <label>Notiz</label>
-                    <input type="text" name="note" placeholder="Halle 2, Schaltschrank 4">
-                    <label>Freigegebene Dienste</label>
+                    <label>Note</label>
+                    <input type="text" name="note" placeholder="Hall 2, cabinet 4">
+                    <label>Released services</label>
                     {dienste}
                     <p>
-                      <button>Freigeben</button>
+                      <button>Approve</button>
                     </p>
                   </form>
                   <form method="post" action="/pending/reject" class="inline">
                     {Csrf(s)}<input type="hidden" name="id" value="{Html.E(r.Id)}">
-                    <button class="gefahr">Ablehnen</button>
+                    <button class="gefahr">Reject</button>
                   </form>
                 </div>
                 """);
@@ -102,25 +102,25 @@ internal sealed partial class WebUi
         if (erledigt.Count > 0)
         {
             inhalt.Append("""
-                <h2>Zuletzt entschieden</h2>
-                <table><tr><th>Fingerabdruck</th><th>Gerät</th><th>Ergebnis</th>
-                           <th>Durch</th><th>Wann</th><th></th></tr>
+                <h2>Recently decided</h2>
+                <table><tr><th>Fingerprint</th><th>Device</th><th>Result</th>
+                           <th>By</th><th>When</th><th></th></tr>
                 """);
             foreach (var r in erledigt)
                 inhalt.Append($"""
                     <tr><td class="mono">{Html.E(r.Fingerprint)}</td>
                         <td class="mono">{Html.E(r.Device ?? "-")}</td>
-                        <td>{(r.State == PendingState.Approved ? "<span class=\"an\">freigegeben</span>" : "<span class=\"aus\">abgelehnt</span>")}</td>
+                        <td>{(r.State == PendingState.Approved ? "<span class=\"an\">approved</span>" : "<span class=\"aus\">rejected</span>")}</td>
                         <td>{Html.E(r.DecidedBy)}</td>
                         <td>{(r.DecidedAt is { } t ? Zeit(t) : "")}</td>
                         <td><form method="post" action="/pending/delete" class="inline">
                             {Csrf(s)}<input type="hidden" name="id" value="{Html.E(r.Id)}">
-                            <button class="link">entfernen</button></form></td></tr>
+                            <button class="link">remove</button></form></td></tr>
                     """);
             inhalt.Append("</table>");
         }
 
-        await Sende(c, Html.Seite("Warteschlange", s, inhalt.ToString(), hinweis, fehler)).ConfigureAwait(false);
+await Sende(c, Html.Seite("Queue", s, inhalt.ToString(), hinweis, fehler)).ConfigureAwait(false);
     }
 
     /// <summary>Aus der Selbstauskunft einen brauchbaren Namen vorschlagen.</summary>
@@ -146,7 +146,7 @@ internal sealed partial class WebUi
 
         try
         {
-            var antrag = relay.Pending.ById(id) ?? throw new InvalidOperationException("Antrag nicht gefunden");
+            var antrag = relay.Pending.ById(id) ?? throw new InvalidOperationException("request not found");
             var erlaubt = dienste.Where(d => antrag.Proposed.ContainsKey(d))
                                  .ToDictionary(d => d, d => antrag.Proposed[d], StringComparer.Ordinal);
 
@@ -166,8 +166,8 @@ internal sealed partial class WebUi
             });
 
             Log.Info("web", $"{s.User}: Gerät '{device}' freigegeben (Fingerabdruck {e.Fingerprint})");
-            await Warteschlange(c, $"'{device}' ist freigegeben. Das Gerät holt sein Zertifikat " +
-                                   "bei der nächsten Nachfrage ab.", null).ConfigureAwait(false);
+            await Warteschlange(c, $"'{device}' is approved. The device picks up its certificate " +
+                                   "on its next poll.", null).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is InvalidOperationException or ProtocolException)
         {
@@ -187,7 +187,7 @@ internal sealed partial class WebUi
         {
             if (ablehnen) { relay.Pending.Ablehnen(id, s.User); Log.Warn("web", $"{s.User}: Antrag {id} abgelehnt"); }
             else relay.Pending.Loeschen(id);
-            await Warteschlange(c, ablehnen ? "Antrag abgelehnt." : "Eintrag entfernt.", null).ConfigureAwait(false);
+            await Warteschlange(c, ablehnen ? "Request rejected." : "Entry removed.", null).ConfigureAwait(false);
         }
         catch (InvalidOperationException ex)
         {
@@ -215,7 +215,7 @@ internal sealed partial class WebUi
             var angeboten = an?.Services ?? [];
 
             var kaesten = angeboten.Length == 0
-                ? """<span class="schwach">nicht verbunden &ndash; Dienste unbekannt</span>"""
+                ? """<span class="schwach">not connected &ndash; services unknown</span>"""
                 : string.Concat(angeboten.Select(x => $"""
                     <label style="display:inline-block;margin-right:1rem">
                       <input type="checkbox" name="svc" value="{Html.E(x)}"{(d.Freigegeben(x) ? " checked" : "")}>
@@ -225,24 +225,24 @@ internal sealed partial class WebUi
             zeilen.Append($"""
                 <div class="karte">
                   <p><strong class="mono">{Html.E(name)}</strong>
-                     {(an is not null ? $"<span class=\"an\">· verbunden seit {Dauer(an.OnlineSec)}</span>"
+                     {(an is not null ? $"<span class=\"an\">· connected for {Dauer(an.OnlineSec)}</span>"
                                       : "<span class=\"aus\">· offline</span>")}
-                     {(gesperrt ? "<span class=\"aus\">· gesperrt</span>" : "")}</p>
+                     {(gesperrt ? "<span class=\"aus\">· revoked</span>" : "")}</p>
                   <form method="post" action="/devices/save">
                     {Csrf(s)}<input type="hidden" name="device" value="{Html.E(name)}">
-                    <label>Notiz</label>
+                    <label>Note</label>
                     <input type="text" name="note" value="{Html.E(d.Note)}">
-                    <label>Freigegebene Dienste</label>
+                    <label>Released services</label>
                     {kaesten}
                     <p><label style="display:inline">
-                       <input type="checkbox" name="revoked"{(gesperrt ? " checked" : "")}> gesperrt
+                       <input type="checkbox" name="revoked"{(gesperrt ? " checked" : "")}> revoked
                        </label>
-                       <span class="schwach">– trennt sofort auch laufende Sitzungen</span></p>
-                    <p><button>Speichern</button></p>
+                       <span class="schwach">– cuts running sessions immediately too</span></p>
+                    <p><button>Save</button></p>
                   </form>
                   <form method="post" action="/devices/delete" class="inline">
                     {Csrf(s)}<input type="hidden" name="device" value="{Html.E(name)}">
-                    <button class="gefahr">Gerät entfernen</button>
+                    <button class="gefahr">Remove device</button>
                   </form>
                 </div>
                 """);
@@ -250,25 +250,25 @@ internal sealed partial class WebUi
 
         var fremde = online.Keys.Where(k => !liste.ContainsKey(k)).ToList();
         var hinweisFremd = fremde.Count == 0 ? "" : $"""
-            <p class="fehler">Verbunden, aber nicht in der Liste: {Html.E(string.Join(", ", fremde))}.
-               Das kann nur vorkommen, wenn <code>allow_unlisted_devices</code> gesetzt ist &ndash;
-               dann darf sich jedes Zertifikat dieser CA anmelden.</p>
+            <p class="fehler">Connected but not on the list: {Html.E(string.Join(", ", fremde))}.
+               This can only happen when <code>allow_unlisted_devices</code> is set &ndash;
+               then every certificate of this CA may enrol.</p>
             """;
 
-        await Sende(c, Html.Seite("Geräte", s, $"""
-            <h1>Geräte</h1>
-            <p class="lead">Nur wer hier steht, darf sich anmelden. Welche Adresse hinter einem
-               Dienstnamen steht, entscheidet das Gerät selbst &ndash; hier wird nur freigegeben
-               oder gesperrt.</p>
+        await Sende(c, Html.Seite("Devices", s, $"""
+            <h1>Devices</h1>
+            <p class="lead">Only what is listed here may enrol. Which address sits behind a
+               service name is the device's own decision &ndash; here it is only released
+               or revoked.</p>
             {hinweisFremd}
             <div class="karte">
-              <p class="schwach">So meldet sich ein neues Gerät an. Dieselbe Zeile für alle Geräte,
-                 sie enthält kein Geheimnis:</p>
+              <p class="schwach">This is how a new device enrols. The same line for every device,
+                 it contains no secret:</p>
               <pre>schleuse enroll -relay {Html.E(OeffentlicheAdresse())} -ca-pin {Html.E(pin)} \
                  -service ssh=127.0.0.1:22 -service http=127.0.0.1:80</pre>
-              <p class="schwach">Das Gerät landet danach in der <a href="/pending">Warteschlange</a>.</p>
+              <p class="schwach">The device then lands in the <a href="/pending">queue</a>.</p>
             </div>
-            {(liste.Count == 0 ? "<p class=\"schwach\">Die Geräteliste ist leer.</p>" : zeilen.ToString())}
+            {(liste.Count == 0 ? "<p class=\"schwach\">The device list is empty.</p>" : zeilen.ToString())}
             """, hinweis, fehler)).ConfigureAwait(false);
     }
 
@@ -302,12 +302,12 @@ internal sealed partial class WebUi
 
         if (!gefunden)
         {
-            await Geraete(c, null, $"'{name}' steht nicht in der Liste.").ConfigureAwait(false);
+            await Geraete(c, null, $"'{name}' is not on the list.").ConfigureAwait(false);
             return;
         }
         Log.Info("web", $"{s.User}: Gerät '{name}' geändert (gesperrt={gesperrt}, " +
                         $"Dienste={string.Join(",", dienste)})");
-        await Geraete(c, $"'{name}' gespeichert.", null).ConfigureAwait(false);
+        await Geraete(c, $"'{name}' saved.", null).ConfigureAwait(false);
     }
 
     /// <summary>Nimmt einen Eintrag in die Sperrliste auf oder heraus, ohne Dubletten.</summary>
@@ -327,7 +327,7 @@ internal sealed partial class WebUi
             acl.Devices?.Remove(name);
         });
         Log.Warn("web", $"{s.User}: Gerät '{name}' aus der Liste entfernt");
-        await Geraete(c, $"'{name}' entfernt. Eine laufende Anmeldung wurde beendet.", null).ConfigureAwait(false);
+        await Geraete(c, $"'{name}' removed. A running enrollment was cut.", null).ConfigureAwait(false);
     }
 
     // -- Zugaenge ------------------------------------------------------------
@@ -344,50 +344,50 @@ internal sealed partial class WebUi
             return $"""
                 <div class="karte">
                   <p><strong class="mono">{Html.E(kv.Key)}</strong>
-                     {(gesperrt ? "<span class=\"aus\">· gesperrt</span>" : "")}</p>
+                     {(gesperrt ? "<span class=\"aus\">· revoked</span>" : "")}</p>
                   <form method="post" action="/clients/save">
                     {Csrf(s)}<input type="hidden" name="client" value="{Html.E(kv.Key)}">
-                    <label>Geräte (Muster, durch Komma getrennt, <code>*</code> erlaubt)</label>
+                    <label>Devices (patterns, comma separated, <code>*</code> allowed)</label>
                     <input type="text" name="devices" value="{Html.E(string.Join(", ", kv.Value.Devices))}">
-                    <label>Dienste</label>
+                    <label>Services</label>
                     <input type="text" name="services" value="{Html.E(string.Join(", ", kv.Value.Services))}">
                     <p><label style="display:inline">
-                       <input type="checkbox" name="revoked"{(gesperrt ? " checked" : "")}> gesperrt</label>
-                       <span class="schwach">– beendet auch laufende Sitzungen</span></p>
-                    <p><button>Speichern</button></p>
+                       <input type="checkbox" name="revoked"{(gesperrt ? " checked" : "")}> revoked</label>
+                       <span class="schwach">– cuts running sessions too</span></p>
+                    <p><button>Save</button></p>
                   </form>
                   <form method="post" action="/clients/delete" class="inline">
                     {Csrf(s)}<input type="hidden" name="client" value="{Html.E(kv.Key)}">
-                    <button class="gefahr">Zugang entfernen</button>
+                    <button class="gefahr">Remove account</button>
                   </form>
                 </div>
                 """;
         }));
 
-        await Sende(c, Html.Seite("Zugänge", s, $"""
-            <h1>Zugänge</h1>
-            <p class="lead">Wer auf welche Geräte und Dienste darf. Die Zertifikate dazu werden
-               nicht hier ausgestellt.</p>
+        await Sende(c, Html.Seite("Access", s, $"""
+            <h1>Access</h1>
+            <p class="lead">Who may reach which devices and services. The matching certificates
+               are not issued here.</p>
             <div class="karte">
-              <p class="schwach">Ein Bediener-Zertifikat entsteht auf dem Rechner, auf dem der
-                 Schlüssel der Wurzel-CA liegt &ndash; nicht auf dem Relay:</p>
+              <p class="schwach">An operator certificate is created on the machine that holds the
+                 root CA key &ndash; not on the relay:</p>
               <pre>./schleuse-pki.sh client &lt;name&gt;</pre>
-              <p class="schwach">Der Relay nimmt Bediener-Zertifikate nur an, wenn die Wurzel-CA sie
-                 unmittelbar signiert hat. Die Zwischen-CA auf dem Relay kann das nicht &ndash; wer
-                 den Relay übernimmt, kann sich damit keinen Zugang schaffen.</p>
+              <p class="schwach">The relay accepts operator certificates only if the root CA signed
+                 them directly. The intermediate CA on the relay cannot do that &ndash; whoever
+                 takes over the relay cannot grant themselves access with it.</p>
             </div>
             {zeilen}
-            <h2>Neuen Zugang eintragen</h2>
+            <h2>Add a new account</h2>
             <div class="karte">
               <form method="post" action="/clients/save">
                 {Csrf(s)}
-                <label>Name (der Teil hinter <code>client:</code> im Zertifikat)</label>
+                <label>Name (the part after <code>client:</code> in the certificate)</label>
                 <input type="text" name="client" class="klein" maxlength="64" pattern="[A-Za-z0-9._-]+" required>
-                <label>Geräte</label>
+                <label>Devices</label>
                 <input type="text" name="devices" value="*">
-                <label>Dienste</label>
+                <label>Services</label>
                 <input type="text" name="services" value="*">
-                <p><button>Anlegen</button></p>
+                <p><button>Create</button></p>
               </form>
             </div>
             """, hinweis, fehler)).ConfigureAwait(false);
@@ -404,7 +404,7 @@ internal sealed partial class WebUi
         var (s, f) = p.Value;
 
         var name = Feld(f, "client", 64);
-        if (!Tls.IsSaneName(name)) { await Zugaenge(c, null, "Unbrauchbarer Name.").ConfigureAwait(false); return; }
+        if (!Tls.IsSaneName(name)) { await Zugaenge(c, null, "Unusable name.").ConfigureAwait(false); return; }
 
         relay.UpdateAcl(acl =>
             {
@@ -419,7 +419,7 @@ internal sealed partial class WebUi
             : [.. acl.Revoked.Where(x => x != eintrag)];
         });
         Log.Info("web", $"{s.User}: Zugang '{name}' gespeichert");
-        await Zugaenge(c, $"'{name}' gespeichert.", null).ConfigureAwait(false);
+        await Zugaenge(c, $"'{name}' saved.", null).ConfigureAwait(false);
     }
 
     async Task ZugangLoeschen(HttpContext c)
@@ -434,7 +434,7 @@ internal sealed partial class WebUi
             acl.Clients.Remove(name);
         });
         Log.Warn("web", $"{s.User}: Zugang '{name}' entfernt");
-        await Zugaenge(c, $"'{name}' entfernt.", null).ConfigureAwait(false);
+        await Zugaenge(c, $"'{name}' removed.", null).ConfigureAwait(false);
     }
 
     // -- Benutzer ------------------------------------------------------------
@@ -448,16 +448,16 @@ internal sealed partial class WebUi
         var zeilen = string.Concat(_users.Alle().Select(u => $"""
             <tr>
               <td class="mono">{Html.E(u.Name)}</td>
-              <td>{(u.Role == WebRole.Admin ? "Verwalter" : "nur lesen")}</td>
-              <td>{(u.ZweiFaktorFertig ? "<span class=\"an\">eingerichtet</span>"
-                                       : "<span class=\"aus\">fehlt noch</span>")}</td>
+              <td>{(u.Role == WebRole.Admin ? "Administrator" : "read only")}</td>
+              <td>{(u.ZweiFaktorFertig ? "<span class=\"an\">set up</span>"
+                                       : "<span class=\"aus\">still missing</span>")}</td>
               <td>{(u.Recovery.Count)}</td>
               <td>{(u.LastLogin is { } t ? Zeit(t) : "-")}</td>
-              <td>{(u.Gesperrt(jetzt) ? $"<span class=\"aus\">bis {Html.E(u.LockedUntil!.Value.ToLocalTime().ToString("HH:mm"))}</span>" : "")}</td>
+              <td>{(u.Gesperrt(jetzt) ? $"<span class=\"aus\">until {Html.E(u.LockedUntil!.Value.ToLocalTime().ToString("HH:mm"))}</span>" : "")}</td>
               <td>
                 <form method="post" action="/users/reset" class="inline">
                   {Csrf(s)}<input type="hidden" name="user" value="{Html.E(u.Name)}">
-                  <button class="link" name="was" value="password">Passwort</button>
+                  <button class="link" name="was" value="password">Password</button>
                 </form> ·
                 <form method="post" action="/users/reset" class="inline">
                   {Csrf(s)}<input type="hidden" name="user" value="{Html.E(u.Name)}">
@@ -465,33 +465,33 @@ internal sealed partial class WebUi
                 </form> ·
                 <form method="post" action="/users/delete" class="inline">
                   {Csrf(s)}<input type="hidden" name="user" value="{Html.E(u.Name)}">
-                  <button class="link">löschen</button>
+                  <button class="link">delete</button>
                 </form>
               </td>
             </tr>
             """));
 
-        await Sende(c, Html.Seite("Benutzer", s, $"""
-            <h1>Benutzer</h1>
-            <p class="lead">Zugänge zu dieser Oberfläche. Jeder braucht Passwort und zweiten Faktor.</p>
+        await Sende(c, Html.Seite("Users", s, $"""
+            <h1>Users</h1>
+            <p class="lead">Accounts for this interface. Every one needs a password and a second factor.</p>
             <table>
-              <tr><th>Name</th><th>Rolle</th><th>2FA</th><th>Codes</th><th>Zuletzt</th><th>Gesperrt</th><th></th></tr>
+              <tr><th>Name</th><th>Role</th><th>2FA</th><th>Codes</th><th>Last seen</th><th>Locked</th><th></th></tr>
               {zeilen}
             </table>
-            <h2>Neuen Benutzer anlegen</h2>
+            <h2>Add a new user</h2>
             <div class="karte">
               <form method="post" action="/users/add">
                 {Csrf(s)}
                 <label>Name</label>
                 <input type="text" name="user" class="klein" maxlength="32" pattern="[A-Za-z0-9._-]+" required>
-                <label>Rolle</label>
+                <label>Role</label>
                 <select name="role">
-                  <option value="Admin">Verwalter – darf alles ändern</option>
-                  <option value="Viewer">nur lesen</option>
+                  <option value="Admin">Administrator – may change everything</option>
+                  <option value="Viewer">read only</option>
                 </select>
-                <p><button>Anlegen</button></p>
-                <p class="schwach">Das Anfangspasswort wird einmalig angezeigt. Der zweite Faktor
-                   wird beim ersten Anmelden eingerichtet.</p>
+                <p><button>Create</button></p>
+                <p class="schwach">The initial password is shown once. The second factor
+                   is set up at the first sign in.</p>
               </form>
             </div>
             """, hinweis, fehler)).ConfigureAwait(false);
@@ -510,8 +510,8 @@ internal sealed partial class WebUi
             var pw = Passwords.Suggest();
             _users.Anlegen(name, pw, rolle, mussAendern: true);
             Log.Info("web", $"{s.User}: Benutzer '{name}' angelegt ({rolle})");
-            await Benutzer(c, $"'{name}' angelegt. Anfangspasswort: {pw} – jetzt notieren, " +
-                              "es wird nicht wieder angezeigt.", null).ConfigureAwait(false);
+            await Benutzer(c, $"'{name}' created. Initial password: {pw} – write it down now, " +
+                              "it is not shown again.", null).ConfigureAwait(false);
         }
         catch (InvalidOperationException ex)
         {
@@ -531,7 +531,7 @@ internal sealed partial class WebUi
             _users.Loeschen(name);
             _sitzungen.BeendeAlle(name);
             Log.Warn("web", $"{s.User}: Benutzer '{name}' gelöscht");
-            await Benutzer(c, $"'{name}' gelöscht.", null).ConfigureAwait(false);
+            await Benutzer(c, $"'{name}' deleted.", null).ConfigureAwait(false);
         }
         catch (InvalidOperationException ex)
         {
@@ -547,15 +547,15 @@ internal sealed partial class WebUi
 
         var name = Feld(f, "user", 32);
         var was = Feld(f, "was", 16);
-        if (_users.Finde(name) is null) { await Benutzer(c, null, "Unbekannter Benutzer.").ConfigureAwait(false); return; }
+        if (_users.Finde(name) is null) { await Benutzer(c, null, "Unknown user.").ConfigureAwait(false); return; }
 
         if (was == "2fa")
         {
             _users.Aendern(name, u => { u.Totp = null; u.TotpConfirmed = false; u.TotpLast = 0; u.Recovery.Clear(); });
             _sitzungen.BeendeAlle(name);
             Log.Warn("web", $"{s.User}: zweiter Faktor von '{name}' zurückgesetzt");
-            await Benutzer(c, $"Der zweite Faktor von '{name}' ist zurückgesetzt und wird beim " +
-                              "nächsten Anmelden neu eingerichtet.", null).ConfigureAwait(false);
+            await Benutzer(c, $"The second factor of '{name}' is reset and will be set up " +
+                              "again at the next sign in.", null).ConfigureAwait(false);
             return;
         }
 
@@ -563,7 +563,7 @@ internal sealed partial class WebUi
         _users.Aendern(name, u => { u.Password = Passwords.Hash(pw); u.MustChange = true; u.Failed = 0; u.LockedUntil = null; });
         _sitzungen.BeendeAlle(name);
         Log.Warn("web", $"{s.User}: Passwort von '{name}' zurückgesetzt");
-        await Benutzer(c, $"Neues Passwort für '{name}': {pw} – jetzt notieren.", null).ConfigureAwait(false);
+        await Benutzer(c, $"New password for '{name}': {pw} – write it down now.", null).ConfigureAwait(false);
     }
 
     // -- Eigenes Konto -------------------------------------------------------
@@ -582,10 +582,10 @@ internal sealed partial class WebUi
             s.Einmalig = null;
             einmalig = $"""
                 <div class="karte">
-                  <h2 style="margin-top:0">Wiederherstellungscodes</h2>
-                  <p>Jeder Code gilt einmal und ersetzt den zweiten Faktor, wenn das Telefon
-                     verloren geht. Jetzt ausdrucken oder notieren &ndash; sie werden nicht
-                     wieder angezeigt.</p>
+                  <h2 style="margin-top:0">Recovery codes</h2>
+                  <p>Each code works once and replaces the second factor if the phone is
+                     lost. Print or write them down now &ndash; they are not shown
+                     again.</p>
                   <ul class="codes">{string.Concat(codes.Split('\n').Select(x => $"<li>{Html.E(x)}</li>"))}</ul>
                 </div>
                 """;
@@ -593,36 +593,36 @@ internal sealed partial class WebUi
 
         var warnung = u.MustChange
             ? """
-              <p class="fehler">Dieses Passwort wurde von einem Verwalter vergeben.
-                 Bitte jetzt ein eigenes setzen.</p>
+              <p class="fehler">This password was set by an administrator.
+                 Please choose your own now.</p>
               """
             : "";
 
-        await Sende(c, Html.Seite("Konto", s, $"""
-            <h1>Konto</h1>
-            <p class="lead">{Html.E(s.User)} · {(s.Role == WebRole.Admin ? "Verwalter" : "nur lesen")}</p>
+        await Sende(c, Html.Seite("Account", s, $"""
+            <h1>Account</h1>
+            <p class="lead">{Html.E(s.User)} · {(s.Role == WebRole.Admin ? "Administrator" : "read only")}</p>
             {einmalig}{warnung}
-            <h2>Passwort ändern</h2>
+            <h2>Change password</h2>
             <div class="karte">
               <form method="post" action="/account/password">
                 {Csrf(s)}
-                <label>Bisheriges Passwort</label>
+                <label>Current password</label>
                 <input type="password" name="alt" autocomplete="current-password" required>
-                <label>Neues Passwort (mindestens 12 Zeichen)</label>
+                <label>New password (at least 12 characters)</label>
                 <input type="password" name="neu" autocomplete="new-password" required>
-                <label>Wiederholen</label>
+                <label>Repeat</label>
                 <input type="password" name="neu2" autocomplete="new-password" required>
-                <p><button>Ändern</button></p>
+                <p><button>Change</button></p>
               </form>
             </div>
-            <h2>Zweiter Faktor</h2>
+            <h2>Second factor</h2>
             <div class="karte">
-              <p>{(u.ZweiFaktorFertig ? "Eingerichtet." : "Noch nicht eingerichtet.")}
-                 Verbleibende Wiederherstellungscodes: {u.Recovery.Count}</p>
+              <p>{(u.ZweiFaktorFertig ? "Set up." : "Not set up yet.")}
+                 Remaining recovery codes: {u.Recovery.Count}</p>
               <form method="post" action="/account/2fa">
                 {Csrf(s)}
-                <p><button class="zweit" name="was" value="codes">Neue Wiederherstellungscodes</button>
-                   <button class="gefahr" name="was" value="neu">Zweiten Faktor neu einrichten</button></p>
+                <p><button class="zweit" name="was" value="codes">New recovery codes</button>
+                   <button class="gefahr" name="was" value="neu">Set up second factor again</button></p>
               </form>
             </div>
             """, hinweis, fehler)).ConfigureAwait(false);
@@ -637,16 +637,16 @@ internal sealed partial class WebUi
         var u = _users.Finde(s.User);
         if (u is null || !Passwords.Verify(u.Password, f["alt"].ToString()))
         {
-            await Konto(c, null, "Das bisherige Passwort stimmt nicht.").ConfigureAwait(false);
+            await Konto(c, null, "The current password is not correct.").ConfigureAwait(false);
             return;
         }
         var neu = f["neu"].ToString();
-        if (neu.Length < 12) { await Konto(c, null, "Das neue Passwort ist zu kurz.").ConfigureAwait(false); return; }
-        if (neu != f["neu2"].ToString()) { await Konto(c, null, "Die Eingaben stimmen nicht überein.").ConfigureAwait(false); return; }
+        if (neu.Length < 12) { await Konto(c, null, "The new password is too short.").ConfigureAwait(false); return; }
+        if (neu != f["neu2"].ToString()) { await Konto(c, null, "The entries do not match.").ConfigureAwait(false); return; }
 
         _users.Aendern(s.User, x => { x.Password = Passwords.Hash(neu); x.MustChange = false; });
         Log.Info("web", $"{s.User}: Passwort geändert");
-        await Konto(c, "Passwort geändert.", null).ConfigureAwait(false);
+        await Konto(c, "Password changed.", null).ConfigureAwait(false);
     }
 
     async Task ZweiterFaktorNeu(HttpContext c)
@@ -659,7 +659,7 @@ internal sealed partial class WebUi
         {
             s.Einmalig = string.Join("\n", _users.NeueWiederherstellung(s.User));
             Log.Info("web", $"{s.User}: neue Wiederherstellungscodes");
-            await Konto(c, "Neue Codes erzeugt. Die alten gelten nicht mehr.", null).ConfigureAwait(false);
+            await Konto(c, "New codes created. The old ones no longer work.", null).ConfigureAwait(false);
             return;
         }
 
@@ -682,56 +682,56 @@ internal sealed partial class WebUi
         var zeilen = string.Concat(_marken.Alle().Select(t => $"""
             <tr>
               <td>{Html.E(t.Name)}</td>
-              <td>{(t.Role == WebRole.Admin ? "Verwalter" : "nur lesen")}</td>
+              <td>{(t.Role == WebRole.Admin ? "Administrator" : "read only")}</td>
               <td>{Zeit(t.Created)}<br><span class="schwach">{Html.E(t.CreatedBy)}</span></td>
-              <td>{(t.Expires is { } e ? Zeit(e) : "unbegrenzt")}</td>
-              <td>{(t.LastUsed is { } l ? Zeit(l) : "nie")}<br>
+              <td>{(t.Expires is { } e ? Zeit(e) : "no limit")}</td>
+              <td>{(t.LastUsed is { } l ? Zeit(l) : "never")}<br>
                   <span class="schwach mono">{Html.E(t.LastFrom)}</span></td>
               <td><form method="post" action="/tokens/delete" class="inline">
                     {Csrf(s)}<input type="hidden" name="id" value="{Html.E(t.Id)}">
-                    <button class="link">zurückziehen</button></form></td>
+                    <button class="link">withdraw</button></form></td>
             </tr>
             """));
 
         var ui = _marken.UiEnabled;
-        await Sende(c, Html.Seite("Schnittstelle", s, $"""
-            <h1>Schnittstelle</h1>
-            <p class="lead">Alles, was hier bedienbar ist, geht auch maschinell. Ausgewiesen
-               wird sich mit einer Marke im Kopf <code>Authorization: Bearer …</code>.</p>
+        await Sende(c, Html.Seite("API", s, $"""
+            <h1>API</h1>
+            <p class="lead">Everything that can be done here also works programmatically.
+               Authentication uses a token in the <code>Authorization: Bearer …</code> header.</p>
 
             <div class="karte">
-              <p>Vorsatz der Pfade: <code>{Html.E(ApiPath)}</code></p>
+              <p>Prefix of all paths: <code>{Html.E(ApiPath)}</code></p>
               <pre>curl -H "Authorization: Bearer schleuse_…" https://&lt;relay&gt;:8443{Html.E(ApiPath)}/status</pre>
-              <p class="schwach">Ohne gültige Marke antwortet jeder Pfad gleich – mit 404 und leerem
-                 Rumpf. Es gibt kein Verzeichnis der Pfade und keine Selbstauskunft.</p>
-              <p class="schwach">Die Weboberfläche ist zurzeit
-                 <strong>{(ui ? "eingeschaltet" : "abgeschaltet")}</strong>. Umlegen lässt sich das
-                 nur über die Schnittstelle (<code>POST {Html.E(ApiPath)}/ui</code>) oder auf dem
-                 Relay mit <code>schleuse ui -c &lt;relay.json&gt; -on</code> – damit man sich hier
-                 nicht selbst aussperrt.</p>
+              <p class="schwach">Without a valid token every path answers the same – 404 with an
+                 empty body. There is no path listing and no self description.</p>
+              <p class="schwach">The web interface is currently
+                 <strong>{(ui ? "switched on" : "switched off")}</strong>. This can only be changed
+                 through the API (<code>POST {Html.E(ApiPath)}/ui</code>) or on the
+                 relay with <code>schleuse ui -c &lt;relay.json&gt; -on</code> – so that nobody
+                 locks themselves out here.</p>
             </div>
 
             <table>
-              <tr><th>Name</th><th>Rolle</th><th>Angelegt</th><th>Gültig bis</th><th>Zuletzt benutzt</th><th></th></tr>
+              <tr><th>Name</th><th>Role</th><th>Created</th><th>Valid until</th><th>Last used</th><th></th></tr>
               {zeilen}
             </table>
 
-            <h2>Neue Marke</h2>
+            <h2>New token</h2>
             <div class="karte">
               <form method="post" action="/tokens/create">
                 {Csrf(s)}
                 <label>Name</label>
                 <input type="text" name="name" class="klein" maxlength="32" pattern="[A-Za-z0-9._-]+" required>
-                <label>Rolle</label>
+                <label>Role</label>
                 <select name="role">
-                  <option value="Viewer">nur lesen</option>
-                  <option value="Admin">Verwalter – darf alles ändern</option>
+                  <option value="Viewer">read only</option>
+                  <option value="Admin">Administrator – may change everything</option>
                 </select>
-                <label>Gültig für … Tage (0 = unbegrenzt)</label>
+                <label>Valid for … days (0 = no limit)</label>
                 <input type="text" name="days" class="klein" value="0">
-                <p><button>Anlegen</button></p>
-                <p class="schwach">Die Marke wird einmalig angezeigt und danach nur noch als
-                   Prüfsumme gespeichert.</p>
+                <p><button>Create</button></p>
+                <p class="schwach">The token is shown once and afterwards stored only as a
+                   checksum.</p>
               </form>
             </div>
             """, hinweis, fehler)).ConfigureAwait(false);
@@ -748,7 +748,7 @@ internal sealed partial class WebUi
             var rolle = Feld(f, "role", 16) == "Admin" ? WebRole.Admin : WebRole.Viewer;
             var (e, klartext) = _marken.Anlegen(Feld(f, "name", 32), rolle, tage, s.User);
             Log.Info("web", $"{s.User}: Marke '{e.Name}' angelegt ({e.Role})");
-            await Marken(c, $"Marke angelegt: {klartext} – jetzt notieren, sie wird nicht wieder angezeigt.",
+            await Marken(c, $"Token created: {klartext} – write it down now, it is not shown again.",
                          null).ConfigureAwait(false);
         }
         catch (InvalidOperationException ex)
@@ -765,6 +765,6 @@ internal sealed partial class WebUi
         var id = Feld(f, "id", 32);
         _marken.Loeschen(id);
         Log.Warn("web", $"{s.User}: Marke {id} zurückgezogen");
-        await Marken(c, "Marke zurückgezogen.", null).ConfigureAwait(false);
+        await Marken(c, "Token withdrawn.", null).ConfigureAwait(false);
     }
 }

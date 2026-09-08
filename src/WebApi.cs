@@ -74,7 +74,7 @@ internal sealed partial class WebUi
         }
         catch (JsonException e)
         {
-            await Fehler(c, "ungültiges JSON: " + e.Message).ConfigureAwait(false);
+            await Fehler(c, "invalid JSON: " + e.Message).ConfigureAwait(false);
             return null;
         }
     }
@@ -173,7 +173,7 @@ internal sealed partial class WebUi
         if (!Bekannt(pfad)) { await Verbergen(c).ConfigureAwait(false); return; }
         if (!schreiben)
         {
-            await Fehler(c, "diese Marke darf nur lesen", 403).ConfigureAwait(false);
+            await Fehler(c, "this token may only read", 403).ConfigureAwait(false);
             return;
         }
 
@@ -356,11 +356,11 @@ internal sealed partial class WebUi
     async Task ApiFreigeben(HttpContext c, ApiRequest r, ApiToken t)
     {
         if (relay.Pending is null || relay.Issuer is null)
-            throw new InvalidOperationException("die Selbstanmeldung ist nicht eingerichtet");
+            throw new InvalidOperationException("self enrollment is not set up");
 
         var id = Pflicht(r.Id, "id");
         var device = Pflicht(r.Device, "device");
-        var antrag = relay.Pending.ById(id) ?? throw new InvalidOperationException("Antrag nicht gefunden");
+        var antrag = relay.Pending.ById(id) ?? throw new InvalidOperationException("request not found");
 
         // Fehlt die Angabe, gilt alles, was das Geraet vorgeschlagen hat.
         var gewuenscht = r.Services ?? [.. antrag.Proposed.Keys];
@@ -386,7 +386,7 @@ internal sealed partial class WebUi
 
     async Task ApiAntragEntscheiden(HttpContext c, ApiRequest r, ApiToken t, bool ablehnen)
     {
-        if (relay.Pending is null) throw new InvalidOperationException("die Selbstanmeldung ist nicht eingerichtet");
+        if (relay.Pending is null) throw new InvalidOperationException("self enrollment is not set up");
         var id = Pflicht(r.Id, "id");
         if (ablehnen)
         {
@@ -396,7 +396,7 @@ internal sealed partial class WebUi
         }
         else
         {
-            if (!relay.Pending.Loeschen(id)) throw new InvalidOperationException("Antrag nicht gefunden");
+            if (!relay.Pending.Loeschen(id)) throw new InvalidOperationException("request not found");
             await Erledigt(c, "entfernt").ConfigureAwait(false);
         }
     }
@@ -404,7 +404,7 @@ internal sealed partial class WebUi
     async Task ApiGeraetSpeichern(HttpContext c, ApiRequest r, ApiToken t)
     {
         var name = Pflicht(r.Device, "device");
-        if (!Tls.IsSaneName(name)) throw new InvalidOperationException("unbrauchbarer Gerätename");
+        if (!Tls.IsSaneName(name)) throw new InvalidOperationException("unusable device name");
 
         var note = Text(r.Note, 200);
         var dienste = r.Services is null ? null : Muster(r.Services).Where(Tls.IsSaneName).ToArray();
@@ -427,7 +427,7 @@ internal sealed partial class WebUi
         var name = Pflicht(r.Device, "device");
         relay.UpdateAcl(acl =>
             {
-            if (acl.Devices?.Remove(name) != true) throw new InvalidOperationException("Gerät nicht in der Liste");
+            if (acl.Devices?.Remove(name) != true) throw new InvalidOperationException("device not on the list");
         });
         Log.Warn("api", $"{t.Name}: Gerät '{name}' entfernt");
         await Erledigt(c, $"'{name}' entfernt").ConfigureAwait(false);
@@ -461,7 +461,7 @@ internal sealed partial class WebUi
         var name = Pflicht(r.Client, "client");
         relay.UpdateAcl(acl =>
             {
-            if (!acl.Clients.Remove(name)) throw new InvalidOperationException("Zugang nicht gefunden");
+            if (!acl.Clients.Remove(name)) throw new InvalidOperationException("access account not found");
         });
         Log.Warn("api", $"{t.Name}: Zugang '{name}' entfernt");
         await Erledigt(c, $"'{name}' entfernt").ConfigureAwait(false);
@@ -476,7 +476,7 @@ internal sealed partial class WebUi
         var pw = Passwords.Suggest();
         _users.Anlegen(name, pw, Rolle(r.Role), mussAendern: true);
         Log.Info("api", $"{t.Name}: Benutzer '{name}' angelegt");
-        await Erledigt(c, $"'{name}' angelegt - der zweite Faktor wird beim ersten Anmelden eingerichtet",
+        await Erledigt(c, $"'{name}' created - the second factor is set up at the first sign in",
                        geheim: pw).ConfigureAwait(false);
     }
 
@@ -486,20 +486,20 @@ internal sealed partial class WebUi
         _users.Loeschen(name);
         _sitzungen.BeendeAlle(name);
         Log.Warn("api", $"{t.Name}: Benutzer '{name}' gelöscht");
-        await Erledigt(c, $"'{name}' gelöscht").ConfigureAwait(false);
+        await Erledigt(c, $"'{name}' deleted").ConfigureAwait(false);
     }
 
     async Task ApiBenutzerZuruecksetzen(HttpContext c, ApiRequest r, ApiToken t)
     {
         var name = Pflicht(r.User, "user");
-        if (_users.Finde(name) is null) throw new InvalidOperationException("unbekannter Benutzer");
+        if (_users.Finde(name) is null) throw new InvalidOperationException("unknown user");
 
         if (string.Equals(r.What, "2fa", StringComparison.OrdinalIgnoreCase))
         {
             _users.Aendern(name, u => { u.Totp = null; u.TotpConfirmed = false; u.TotpLast = 0; u.Recovery.Clear(); });
             _sitzungen.BeendeAlle(name);
             Log.Warn("api", $"{t.Name}: zweiter Faktor von '{name}' zurückgesetzt");
-            await Erledigt(c, "zweiter Faktor zurückgesetzt").ConfigureAwait(false);
+            await Erledigt(c, "second factor reset").ConfigureAwait(false);
             return;
         }
 
@@ -507,7 +507,7 @@ internal sealed partial class WebUi
         _users.Aendern(name, u => { u.Password = Passwords.Hash(pw); u.MustChange = true; u.Failed = 0; u.LockedUntil = null; });
         _sitzungen.BeendeAlle(name);
         Log.Warn("api", $"{t.Name}: Passwort von '{name}' zurückgesetzt");
-        await Erledigt(c, "Passwort zurückgesetzt", geheim: pw).ConfigureAwait(false);
+        await Erledigt(c, "password reset", geheim: pw).ConfigureAwait(false);
     }
 
     async Task ApiMarkeAnlegen(HttpContext c, ApiRequest r, ApiToken t)
@@ -515,16 +515,16 @@ internal sealed partial class WebUi
         var name = Pflicht(r.Name, "name");
         (ApiToken e, string klartext) = _marken.Anlegen(name, Rolle(r.Role), Math.Clamp(r.Days ?? 0, 0, 3650), "token:" + t.Name);
         Log.Info("api", $"{t.Name}: Marke '{name}' angelegt ({e.Role}, id {e.Id})");
-        await Erledigt(c, $"Marke '{name}' angelegt - sie wird nur dieses eine Mal angezeigt",
+        await Erledigt(c, $"token '{name}' created - it is shown this one time only",
                        geheim: klartext).ConfigureAwait(false);
     }
 
     async Task ApiMarkeLoeschen(HttpContext c, ApiRequest r, ApiToken t)
     {
         var id = Pflicht(r.Id, "id");
-        if (!_marken.Loeschen(id)) throw new InvalidOperationException("Marke nicht gefunden");
+        if (!_marken.Loeschen(id)) throw new InvalidOperationException("token not found");
         Log.Warn("api", $"{t.Name}: Marke {id} zurückgezogen");
-        await Erledigt(c, "zurückgezogen").ConfigureAwait(false);
+        await Erledigt(c, "withdrawn").ConfigureAwait(false);
     }
 
     async Task ApiUiSchalten(HttpContext c, ApiRequest r, ApiToken t)
@@ -534,8 +534,8 @@ internal sealed partial class WebUi
         if (!an) _sitzungen.AlleBeenden();
         Log.Warn("api", $"{t.Name}: Weboberfläche {(an ? "eingeschaltet" : "abgeschaltet")}");
         await Erledigt(c, an
-            ? "die Weboberfläche ist wieder bedienbar"
-            : "die Weboberfläche ist abgeschaltet; sie lässt sich hierüber oder mit " +
-              "'schleuse ui -c <relay.json> -on' wieder einschalten").ConfigureAwait(false);
+            ? "the web interface can be used again"
+            : "the web interface is switched off; it can be switched back on here or with " +
+              "'schleuse ui -c <relay.json> -on'").ConfigureAwait(false);
     }
 }

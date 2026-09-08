@@ -161,7 +161,8 @@ certbot certonly --standalone -d tunnel.example.com
 ```
 
 At startup the log states the setup password for the first administrator and the
-CA fingerprint for self-enrolment:
+CA fingerprint for self-enrolment. The web interface is in English; the log
+output is still in German:
 
 ```
 warn  web    noch kein Benutzer eingerichtet. Zum Anlegen des ersten Verwalters:
@@ -182,7 +183,7 @@ into `~/.config/schleuse/`.
 
 ## Managing in the browser
 
-The UI works without JavaScript and does five things:
+The UI works without JavaScript and does six things:
 
 * **Overview** — what is connected, what is running right now.
 * **Queue** — new requests with a fingerprint to compare, assign name and

@@ -35,6 +35,25 @@ gibt es die Zielumgebung ohnehin, nötig ist nur das .NET-SDK.
 
 ---
 
+## Sprache der Oberfläche
+
+Die Weboberfläche ist seit der Umstellung **englisch, und nur englisch**. Die
+Texte stehen weiterhin fest in den HTML-Literalen (`src/WebUiSeiten.cs`,
+`src/WebUi.cs`, `src/Html.cs`); es gibt keinen Schalter und keine
+Ressourcentabelle.
+
+Wer beide Sprachen will, kommt um den größeren Umbau nicht herum: Texte in eine
+Tabelle mit Schlüsseln, ein Schlüssel `web.language` in `relay.json`, und —
+das ist der Teil, den man beim Schätzen übersieht — die Ausnahmen in
+`src/Enrollment.cs`, `src/Users.cs` und `src/ApiTokens.cs` müssen einen
+Schlüssel tragen statt eines fertigen Satzes. Sonst zeigt eine englische
+Oberfläche bei jedem Fehler wieder Deutsch.
+
+Nicht umgestellt sind die Protokollausgaben und die Meldungen der
+Kommandozeile. Beide bleiben deutsch.
+
+---
+
 ## Wo die übrigen offenen Punkte stehen
 
 * **Cyber Resilience Act** — Vertriebsweg klären, Einstufung gegen die

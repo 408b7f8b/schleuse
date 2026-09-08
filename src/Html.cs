@@ -32,18 +32,18 @@ internal static class Html
         var nav = s is { TotpDone: true }
             ? $"""
                <nav>
-                 <a href="/">Übersicht</a>
-                 <a href="/pending">Warteschlange</a>
-                 <a href="/devices">Geräte</a>
-                 <a href="/clients">Zugänge</a>
-                 <a href="/users">Benutzer</a>
-                 <a href="/tokens">Schnittstelle</a>
+                 <a href="/">Overview</a>
+                 <a href="/pending">Queue</a>
+                 <a href="/devices">Devices</a>
+                 <a href="/clients">Access</a>
+                 <a href="/users">Users</a>
+                 <a href="/tokens">API</a>
                  <span class="sp"></span>
-                 <span class="wer">{E(s.User)}{(s.Role == WebRole.Viewer ? " · nur lesen" : "")}</span>
-                 <a href="/account">Konto</a>
+                 <span class="wer">{E(s.User)}{(s.Role == WebRole.Viewer ? " · read only" : "")}</span>
+                 <a href="/account">Account</a>
                  <form method="post" action="/logout" class="inline">
                    <input type="hidden" name="csrf" value="{E(s.Csrf)}">
-                   <button class="link">abmelden</button>
+                   <button class="link">sign out</button>
                  </form>
                </nav>
                """
@@ -55,13 +55,13 @@ internal static class Html
 
         return $"""
             <!doctype html>
-            <html lang="de"><head>
+            <html lang="en"><head>
             <meta charset="utf-8">
             <meta name="viewport" content="width=device-width,initial-scale=1">
             <title>{E(titel)} · schleuse</title>
             <style>{Css}</style>
             </head><body>
-            <header><a href="/" class="marke">schleuse</a><span class="unter">Fernwartung</span></header>
+            <header><a href="/" class="marke">schleuse</a><span class="unter">remote access</span></header>
             {nav}
             <main>{meldung}{inhalt}</main>
             </body></html>

@@ -72,7 +72,7 @@ internal sealed class ApiTokenStore(string path)
     /// <summary>Legt eine Marke an und liefert sie im Klartext - das einzige Mal.</summary>
     public (ApiToken Eintrag, string Klartext) Anlegen(string name, WebRole rolle, int tage, string durch)
     {
-        if (!UserStore.IstBrauchbarerName(name)) throw new InvalidOperationException("unbrauchbarer Name");
+        if (!UserStore.IstBrauchbarerName(name)) throw new InvalidOperationException("unusable name");
 
         var roh = RandomNumberGenerator.GetBytes(32);
         var klartext = Prefix + Base32.Encode(roh);
@@ -88,7 +88,7 @@ internal sealed class ApiTokenStore(string path)
         };
         lock (_gate)
         {
-            if (_datei.Tokens.Count >= 64) throw new InvalidOperationException("zu viele Marken");
+            if (_datei.Tokens.Count >= 64) throw new InvalidOperationException("too many tokens");
             _datei.Tokens.Add(e);
             Speichern();
         }

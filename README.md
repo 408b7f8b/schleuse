@@ -183,19 +183,20 @@ nach `~/.config/schleuse/`.
 
 ## Verwalten im Browser
 
-Die Oberfläche kommt ohne JavaScript aus und tut fünf Dinge:
+Die Oberfläche kommt ohne JavaScript aus und tut sechs Dinge. **Ihre Texte
+sind englisch**; das Protokoll des Relays bleibt deutsch:
 
-* **Übersicht** — was ist verbunden, was läuft gerade.
-* **Warteschlange** — neue Anträge mit Fingerabdruck zum Vergleichen, Name und
+* **Overview** — was ist verbunden, was läuft gerade.
+* **Queue** — neue Anträge mit Fingerabdruck zum Vergleichen, Name und
   Portfreigaben vergeben, freigeben oder ablehnen.
-* **Geräte** — Notiz, freigegebene Dienste, sperren, entfernen. Welche Adresse
+* **Devices** — Notiz, freigegebene Dienste, sperren, entfernen. Welche Adresse
   hinter einem Dienstnamen steht, entscheidet weiterhin das Gerät; hier wird nur
   freigegeben oder gesperrt.
-* **Zugänge** — wer auf welche Geräte und Dienste darf. Die Zertifikate dazu
+* **Access** — wer auf welche Geräte und Dienste darf. Die Zertifikate dazu
   entstehen offline, nicht hier.
-* **Benutzer** — Verwalter und nur-lesende Zugänge, Passwort und zweiten Faktor
+* **Users** — Verwalter und nur-lesende Zugänge, Passwort und zweiten Faktor
   zurücksetzen.
-* **Schnittstelle** — Marken ausgeben und zurückziehen.
+* **API** — Marken ausgeben und zurückziehen.
 
 Jeder Benutzer braucht Passwort und zweiten Faktor. Beim ersten Anmelden wird
 das Geheimnis für die Authenticator-App als QR-Code angezeigt, darunter zum

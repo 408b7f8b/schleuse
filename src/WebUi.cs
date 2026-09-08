@@ -215,8 +215,8 @@ internal sealed partial class WebUi(Relay relay, WebConfig cfg, string cfgPath)
 
         if (nurVerwalter && s.Role != WebRole.Admin)
         {
-            await Sende(c, Html.Seite("Nicht erlaubt", s,
-                "<h1>Nicht erlaubt</h1><p class=\"lead\">Dieser Zugang darf nur lesen.</p>")).ConfigureAwait(false);
+            await Sende(c, Html.Seite("Not allowed", s,
+                "<h1>Not allowed</h1><p class=\"lead\">This account may only read.</p>")).ConfigureAwait(false);
             return null;
         }
 
@@ -311,20 +311,20 @@ internal sealed partial class WebUi(Relay relay, WebConfig cfg, string cfgPath)
     Task SetupSeite(HttpContext c, string? fehler)
     {
         if (!_users.Leer) return Weiter(c, "/login");
-        return Sende(c, Html.Seite("Ersteinrichtung", null, $"""
+        return Sende(c, Html.Seite("Initial setup", null, $"""
             <div class="anmelden">
-            <h1>Ersteinrichtung</h1>
-            <p class="lead">Das Kennwort steht im Protokoll des Relays.</p>
+            <h1>Initial setup</h1>
+            <p class="lead">The setup password is printed in the relay's log.</p>
             <form method="post" action="/setup">
-              <label>Kennwort aus dem Protokoll</label>
+              <label>Setup password from the log</label>
               <input type="text" name="token" autocomplete="off" autofocus required>
-              <label>Benutzername</label>
+              <label>User name</label>
               <input type="text" name="user" autocomplete="username" required>
-              <label>Passwort (mindestens 12 Zeichen)</label>
+              <label>Password (at least 12 characters)</label>
               <input type="password" name="pw" autocomplete="new-password" required>
-              <label>Passwort wiederholen</label>
+              <label>Repeat password</label>
               <input type="password" name="pw2" autocomplete="new-password" required>
-              <p><button>Anlegen</button></p>
+              <p><button>Create</button></p>
             </form>
             </div>
             """, fehler: fehler));
@@ -338,13 +338,13 @@ internal sealed partial class WebUi(Relay relay, WebConfig cfg, string cfgPath)
         if (!Fingerprint.Same(Feld(f, "token"), _setupToken))
         {
             Log.Warn("web", $"Ersteinrichtung mit falschem Kennwort von {c.Connection.RemoteIpAddress}");
-            { await SetupSeite(c, "Das Kennwort stimmt nicht.").ConfigureAwait(false); return; }
+            { await SetupSeite(c, "The setup password is not correct.").ConfigureAwait(false); return; }
         }
         var name = Feld(f, "user", 32);
         var pw = f["pw"].ToString();
-        if (!UserStore.IstBrauchbarerName(name)) { await SetupSeite(c, "Unbrauchbarer Benutzername.").ConfigureAwait(false); return; }
-        if (pw.Length < 12) { await SetupSeite(c, "Das Passwort ist zu kurz.").ConfigureAwait(false); return; }
-        if (pw != f["pw2"].ToString()) { await SetupSeite(c, "Die Passwörter stimmen nicht überein.").ConfigureAwait(false); return; }
+        if (!UserStore.IstBrauchbarerName(name)) { await SetupSeite(c, "Unusable user name.").ConfigureAwait(false); return; }
+        if (pw.Length < 12) { await SetupSeite(c, "The password is too short.").ConfigureAwait(false); return; }
+        if (pw != f["pw2"].ToString()) { await SetupSeite(c, "The passwords do not match.").ConfigureAwait(false); return; }
 
         var u = _users.Anlegen(name, pw, WebRole.Admin, mussAendern: false);
         _setupToken = null;
@@ -361,15 +361,15 @@ internal sealed partial class WebUi(Relay relay, WebConfig cfg, string cfgPath)
     {
         if (_users.Leer) return Weiter(c, "/setup");
         if (Sitzung(c) is { TotpDone: true }) return Weiter(c, "/");
-        return Sende(c, Html.Seite("Anmelden", null, """
+        return Sende(c, Html.Seite("Sign in", null, """
             <div class="anmelden">
-            <h1>Anmelden</h1>
+            <h1>Sign in</h1>
             <form method="post" action="/login">
-              <label>Benutzername</label>
+              <label>User name</label>
               <input type="text" name="user" autocomplete="username" autofocus required>
-              <label>Passwort</label>
+              <label>Password</label>
               <input type="password" name="pw" autocomplete="current-password" required>
-              <p><button>Weiter</button></p>
+              <p><button>Continue</button></p>
             </form>
             </div>
             """, fehler: fehler));
@@ -388,7 +388,7 @@ internal sealed partial class WebUi(Relay relay, WebConfig cfg, string cfgPath)
         if (warte > TimeSpan.FromMilliseconds(300))
         {
             await Task.Delay(warte).ConfigureAwait(false);
-            { await LoginSeite(c, "Zu viele Fehlversuche. Bitte etwas warten.").ConfigureAwait(false); return; }
+            { await LoginSeite(c, "Too many failed attempts. Please wait a moment.").ConfigureAwait(false); return; }
         }
 
         var (ok, grund) = _users.PruefePasswort(name, f["pw"].ToString());
@@ -401,7 +401,7 @@ internal sealed partial class WebUi(Relay relay, WebConfig cfg, string cfgPath)
             // absichtlich Rechenzeit, also darf sie nicht beliebig oft angestossen
             // werden koennen.
             await Task.Delay(Bremse("login:" + von)).ConfigureAwait(false);
-            { await LoginSeite(c, grund ?? "Benutzername oder Passwort stimmt nicht.").ConfigureAwait(false); return; }
+            { await LoginSeite(c, grund ?? "User name or password is not correct.").ConfigureAwait(false); return; }
         }
 
         var u = _users.Finde(name)!;
@@ -415,16 +415,16 @@ internal sealed partial class WebUi(Relay relay, WebConfig cfg, string cfgPath)
         var s = Sitzung(c);
         if (s is null) return Weiter(c, "/login");
         if (s.TotpDone) return Weiter(c, "/");
-        return Sende(c, Html.Seite("Zweiter Faktor", null, $"""
+        return Sende(c, Html.Seite("Second factor", null, $"""
             <div class="anmelden">
-            <h1>Zweiter Faktor</h1>
-            <p class="lead">Der sechsstellige Code aus der Authenticator-App.
-               Ein Wiederherstellungscode geht auch.</p>
+            <h1>Second factor</h1>
+            <p class="lead">The six digit code from the authenticator app.
+               A recovery code works too.</p>
             <form method="post" action="/login/2fa">
               <input type="hidden" name="csrf" value="{Html.E(s.Csrf)}">
               <label>Code</label>
               <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code" autofocus required>
-              <p><button>Anmelden</button></p>
+              <p><button>Sign in</button></p>
             </form>
             </div>
             """, fehler: fehler));
@@ -441,7 +441,7 @@ internal sealed partial class WebUi(Relay relay, WebConfig cfg, string cfgPath)
         {
             Log.Warn("web", $"{s.User}: zweiter Faktor falsch, von {c.Connection.RemoteIpAddress}");
             await Task.Delay(500).ConfigureAwait(false);
-            { await ZweiterFaktorSeite(c, "Der Code stimmt nicht.").ConfigureAwait(false); return; }
+            { await ZweiterFaktorSeite(c, "The code is not correct.").ConfigureAwait(false); return; }
         }
 
         s.TotpDone = true;
@@ -466,27 +466,27 @@ internal sealed partial class WebUi(Relay relay, WebConfig cfg, string cfgPath)
         // die Inhaltsregel bleibt damit bei default-src 'none'. Kodiert wird
         // hier im Haus - die Zeile enthaelt das Geheimnis des zweiten Faktors,
         // sie an einen Dienst im Netz zu schicken hoebe die ganze Uebung auf.
-        var qr = QrCode.Svg(QrCode.Encode(uri), "QR-Code mit der Einrichtungszeile");
+        var qr = QrCode.Svg(QrCode.Encode(uri), "QR code holding the setup line");
 
-        return Sende(c, Html.Seite("Zweiten Faktor einrichten", null, $"""
+        return Sende(c, Html.Seite("Set up second factor", null, $"""
             <div class="anmelden" style="max-width:34rem">
-            <h1>Zweiten Faktor einrichten</h1>
-            <p class="lead">In der Authenticator-App scannen und dann einen Code
-               eingeben.</p>
+            <h1>Set up second factor</h1>
+            <p class="lead">Scan this in the authenticator app, then enter a
+               code.</p>
             <div class="karte">
               <p class="qr">{qr}</p>
-              <p class="schwach">Geht das Scannen nicht, von Hand hinzufügen:</p>
-              <p class="schwach">Geheimnis</p>
+              <p class="schwach">If scanning does not work, add it by hand:</p>
+              <p class="schwach">Secret</p>
               <p class="fp">{Html.E(Base32.Group(u.Totp!))}</p>
-              <p class="schwach">Verfahren: TOTP, SHA-1, 6 Stellen, 30 Sekunden</p>
-              <p class="schwach">Vollständige Zeile für Apps, die sie annehmen:</p>
+              <p class="schwach">Method: TOTP, SHA-1, 6 digits, 30 seconds</p>
+              <p class="schwach">Full line for apps that accept it:</p>
               <pre>{Html.E(uri)}</pre>
             </div>
             <form method="post" action="/login/2fa-neu">
               <input type="hidden" name="csrf" value="{Html.E(s.Csrf)}">
-              <label>Code aus der App</label>
+              <label>Code from the app</label>
               <input type="text" name="code" inputmode="numeric" class="klein" autofocus required>
-              <p><button>Bestätigen</button></p>
+              <p><button>Confirm</button></p>
             </form>
             </div>
             """, fehler: fehler));
@@ -500,7 +500,7 @@ internal sealed partial class WebUi(Relay relay, WebConfig cfg, string cfgPath)
         if (f["csrf"].ToString() != s.Csrf) { await Status(c, 400).ConfigureAwait(false); return; }
 
         if (!_users.PruefeTotp(s.User, Feld(f, "code", 16)))
-            { await ZweiterFaktorEinrichten(c, "Der Code stimmt nicht. Stimmt die Uhrzeit des Geräts?").ConfigureAwait(false); return; }
+            { await ZweiterFaktorEinrichten(c, "The code is not correct. Is the clock of the device right?").ConfigureAwait(false); return; }
 
         var codes = _users.NeueWiederherstellung(s.User);
         s.TotpDone = true;
@@ -536,14 +536,14 @@ internal sealed partial class WebUi(Relay relay, WebConfig cfg, string cfgPath)
         var acl = relay.CurrentAcl;
 
         var warte = offen == 0 ? "" : $"""
-            <p class="hinweis">{offen} Anmeldung{(offen == 1 ? "" : "en")} wartet auf Freigabe -
-               <a href="/pending">ansehen</a></p>
+            <p class="hinweis">{offen} enrollment{(offen == 1 ? "" : "s")} waiting for approval -
+               <a href="/pending">review</a></p>
             """;
 
         var geraete = online.Count == 0
-            ? "<p class=\"schwach\">Zurzeit ist kein Gerät verbunden.</p>"
+            ? "<p class=\"schwach\">No device is connected right now.</p>"
             : $"""
-               <table><tr><th>Gerät</th><th>Dienste</th><th>Online</th><th>Sitzungen</th><th>Notiz</th></tr>
+               <table><tr><th>Device</th><th>Services</th><th>Online</th><th>Sessions</th><th>Note</th></tr>
                {string.Concat(online.Select(d => $"""
                  <tr><td class="mono">{Html.E(d.Device)}</td>
                      <td>{string.Concat(d.Services.Select(x =>
@@ -554,13 +554,13 @@ internal sealed partial class WebUi(Relay relay, WebConfig cfg, string cfgPath)
                      <td class="schwach">{Html.E(d.Note)}</td></tr>
                  """))}
                </table>
-               <p class="schwach">Durchgestrichene Dienste bietet das Gerät an, sie sind aber nicht freigegeben.</p>
+               <p class="schwach">Struck out services are offered by the device but not released.</p>
                """;
 
         var sitzungen = tunnel.Count == 0
-            ? "<p class=\"schwach\">Zurzeit läuft keine Sitzung.</p>"
+            ? "<p class=\"schwach\">No session is running right now.</p>"
             : $"""
-               <table><tr><th>Zugang</th><th>Gerät</th><th>Dienst</th></tr>
+               <table><tr><th>Account</th><th>Device</th><th>Service</th></tr>
                {string.Concat(tunnel.Select(t => $"""
                  <tr><td class="mono">{Html.E(t.Client)}</td><td class="mono">{Html.E(t.Device)}</td>
                      <td class="mono">{Html.E(t.Service)}</td></tr>
@@ -568,14 +568,14 @@ internal sealed partial class WebUi(Relay relay, WebConfig cfg, string cfgPath)
                </table>
                """;
 
-        return Sende(c, Html.Seite("Übersicht", s, $"""
-            <h1>Übersicht</h1>
-            <p class="lead">{online.Count} Gerät{(online.Count == 1 ? "" : "e")} verbunden,
-               {tunnel.Count} laufende Sitzung{(tunnel.Count == 1 ? "" : "en")}.</p>
+        return Sende(c, Html.Seite("Overview", s, $"""
+            <h1>Overview</h1>
+            <p class="lead">{online.Count} device{(online.Count == 1 ? "" : "s")} connected,
+               {tunnel.Count} session{(tunnel.Count == 1 ? "" : "s")} running.</p>
             {warte}
-            <h2>Verbundene Geräte</h2>
+            <h2>Connected devices</h2>
             {geraete}
-            <h2>Laufende Sitzungen</h2>
+            <h2>Running sessions</h2>
             {sitzungen}
             """));
     }
@@ -585,6 +585,6 @@ internal sealed partial class WebUi(Relay relay, WebConfig cfg, string cfgPath)
         < 60 => $"{sek} s",
         < 3600 => $"{sek / 60} min",
         < 86400 => $"{sek / 3600} h",
-        _ => $"{sek / 86400} T",
+        _ => $"{sek / 86400} d",
     };
 }

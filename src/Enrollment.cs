@@ -91,7 +91,7 @@ internal sealed class PendingStore(string path, int maxOffen, TimeSpan lebensdau
 
             var offen = _datei.Requests.Count(r => r.State == PendingState.Pending);
             if (offen >= maxOffen)
-                throw new ProtocolException($"Warteschlange voll ({maxOffen} offene Antraege) - bitte erst bearbeiten");
+                throw new ProtocolException($"queue is full ({maxOffen} open requests) - please work through them first");
 
             var claim = RandomNumberGenerator.GetBytes(32);
             var e = new PendingRequest
@@ -140,17 +140,17 @@ internal sealed class PendingStore(string path, int maxOffen, TimeSpan lebensdau
         lock (_gate)
         {
             var e = _datei.Requests.Find(r => r.Id == id)
-                    ?? throw new InvalidOperationException("Antrag nicht gefunden");
+                    ?? throw new InvalidOperationException("request not found");
             if (e.State != PendingState.Pending)
-                throw new InvalidOperationException($"Antrag ist bereits {e.State}");
+                throw new InvalidOperationException($"request is already {e.State}");
             if (!Tls.IsSaneName(device))
-                throw new InvalidOperationException("unbrauchbarer Geraetename");
+                throw new InvalidOperationException("unusable device name");
 
             var antrag = DeviceIssuer.PruefeAntrag(e.Csr);
             // Der Fingerabdruck im Eintrag muss zum Antrag passen - sonst waere
             // zwischen Anzeige und Freigabe etwas ausgetauscht worden.
             if (!Fingerprint.Same(e.Fingerprint, Fingerprint.OfPublicKey(antrag.PublicKey)))
-                throw new InvalidOperationException("Fingerabdruck passt nicht zum hinterlegten Antrag");
+                throw new InvalidOperationException("fingerprint does not match the stored request");
 
             using var cert = issuer.Issue(device, antrag);
             e.Cert = Pem.Certificate(cert);
@@ -168,7 +168,7 @@ internal sealed class PendingStore(string path, int maxOffen, TimeSpan lebensdau
     {
         lock (_gate)
         {
-            var e = _datei.Requests.Find(r => r.Id == id) ?? throw new InvalidOperationException("Antrag nicht gefunden");
+            var e = _datei.Requests.Find(r => r.Id == id) ?? throw new InvalidOperationException("request not found");
             e.State = PendingState.Rejected;
             e.DecidedBy = durch;
             e.DecidedAt = DateTimeOffset.UtcNow;
@@ -231,7 +231,7 @@ internal sealed class DeviceIssuer(X509Certificate2 issuer, int certDays)
         if (von < caVon) von = caVon;
         var bis = DateTimeOffset.UtcNow.AddDays(certDays);
         if (bis > caBis) bis = caBis;   // und nie laenger gueltig als die CA
-        if (bis <= von) throw new ProtocolException("die Zwischen-CA ist abgelaufen");
+        if (bis <= von) throw new ProtocolException("the intermediate CA has expired");
         var serial = RandomNumberGenerator.GetBytes(16);
         serial[0] &= 0x7F;
 
@@ -251,7 +251,7 @@ internal sealed class DeviceIssuer(X509Certificate2 issuer, int certDays)
         }
         catch (Exception e) when (e is CryptographicException or ArgumentException or InvalidOperationException)
         {
-            throw new ProtocolException("Zertifikatsantrag unbrauchbar: " + e.Message);
+            throw new ProtocolException("certificate request unusable: " + e.Message);
         }
 
         var oid = antrag.PublicKey.Oid.Value;
@@ -261,18 +261,18 @@ internal sealed class DeviceIssuer(X509Certificate2 issuer, int certDays)
             {
                 using var ec = ECDsa.Create();
                 ec.ImportSubjectPublicKeyInfo(antrag.PublicKey.ExportSubjectPublicKeyInfo(), out _);
-                if (ec.KeySize < 256) throw new ProtocolException($"EC-Schluessel zu kurz: {ec.KeySize} Bit");
+                if (ec.KeySize < 256) throw new ProtocolException($"EC key too short: {ec.KeySize} bit");
                 break;
             }
             case "1.2.840.113549.1.1.1": // RSA
             {
                 using var rsa = RSA.Create();
                 rsa.ImportSubjectPublicKeyInfo(antrag.PublicKey.ExportSubjectPublicKeyInfo(), out _);
-                if (rsa.KeySize < 2048) throw new ProtocolException($"RSA-Schluessel zu kurz: {rsa.KeySize} Bit");
+                if (rsa.KeySize < 2048) throw new ProtocolException($"RSA key too short: {rsa.KeySize} bit");
                 break;
             }
             default:
-                throw new ProtocolException($"Schluesselverfahren {oid} nicht zugelassen");
+                throw new ProtocolException($"key algorithm {oid} not allowed");
         }
         return antrag;
     }
