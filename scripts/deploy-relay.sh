@@ -8,6 +8,9 @@
 # Erwartet Schluessel-Anmeldung. Ist noch keine eingerichtet:
 #     ssh-copy-id benutzer@host
 #
+# Kommt man an die Maschine nur vor Ort heran, tut install-relay.sh dasselbe
+# dort - und stellt auf Wunsch auch die Zertifikate aus.
+#
 # Der Schluessel der Wurzel-CA bleibt auf DIESEM Rechner. Auf die Zielmaschine
 # gehen nur ca.crt, das Relay-Zertifikat samt Schluessel und - fuer die
 # Selbstanmeldung - die Zwischen-CA.

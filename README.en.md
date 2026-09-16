@@ -140,7 +140,7 @@ then has to come out of the systemd unit.
 `pki/ca.key` stays there and is copied nowhere. Only `ca.crt`, `relay.crt`,
 `relay.key`, `device-ca.crt` and `device-ca.key` go to the relay.
 
-**2 — Relay:**
+**2 — Relay:** either by hand
 
 ```sh
 install -m755 out/linux-x64/schleuse /usr/local/bin/schleuse
@@ -151,6 +151,28 @@ cp examples/relay.json /etc/schleuse/           # and adjust
 cp deploy/schleuse-relay.service /etc/systemd/system/
 systemctl enable --now schleuse-relay
 ```
+
+or with one of the two scripts that do exactly this and check what can be
+checked along the way (their output is in German):
+
+```sh
+# from the workstation, over SSH onto the server:
+./scripts/deploy-relay.sh relais@tunnel.example.com tunnel.example.com
+
+# on the relay itself - put the binary and the certificates next to it:
+sudo ./install-relay.sh -name tunnel.example.com
+sudo ./install-relay.sh -n -name tunnel.example.com   # report only, change nothing
+```
+
+If no certificates are brought along, `install-relay.sh` can issue them:
+
+```sh
+sudo ./install-relay.sh -pki-neu -name tunnel.example.com -client db
+```
+
+The root CA then comes into being on the relay — the machine with open ports.
+The script closes by explaining how to get `ca.key` off it again; what stays
+behind is `ca.crt` and the intermediate CA, which can only issue devices.
 
 For the web UI a publicly trusted certificate is advisable so the browser does
 not warn:

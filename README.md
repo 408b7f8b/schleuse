@@ -141,7 +141,7 @@ die Zeile muss dann aus der systemd-Einheit.
 `pki/ca.key` bleibt dort und wird nirgendwohin kopiert. Auf den Relay gehen nur
 `ca.crt`, `relay.crt`, `relay.key`, `device-ca.crt` und `device-ca.key`.
 
-**2 — Relay:**
+**2 — Relay:** entweder von Hand
 
 ```sh
 install -m755 out/linux-x64/schleuse /usr/local/bin/schleuse
@@ -152,6 +152,30 @@ cp examples/relay.json /etc/schleuse/           # und anpassen
 cp deploy/schleuse-relay.service /etc/systemd/system/
 systemctl enable --now schleuse-relay
 ```
+
+oder mit einem der beiden Skripte, die genau das tun und dabei pruefen, was
+sich pruefen laesst:
+
+```sh
+# vom Arbeitsplatz aus, ueber SSH auf den Server:
+./scripts/deploy-relay.sh relais@tunnel.example.com tunnel.example.com
+
+# auf dem Relay selbst - Binary und Zertifikate daneben legen:
+sudo ./install-relay.sh -name tunnel.example.com
+sudo ./install-relay.sh -n -name tunnel.example.com   # erst nur berichten
+```
+
+`install-relay.sh` stellt auf Wunsch auch die Zertifikate aus, wenn keine
+mitgebracht werden:
+
+```sh
+sudo ./install-relay.sh -pki-neu -name tunnel.example.com -client db
+```
+
+Dann entsteht die Wurzel-CA allerdings auf dem Relay — also auf der Maschine
+mit offenen Ports. Das Skript sagt am Ende, wie `ca.key` von dort wieder
+verschwindet; auf dem Relay bleiben `ca.crt` und die Zwischen-CA, die nur
+Geräte ausstellen kann.
 
 Für die Weboberfläche empfiehlt sich ein öffentlich vertrauenswürdiges
 Zertifikat, damit der Browser nicht warnt:
