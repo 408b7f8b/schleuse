@@ -2,36 +2,33 @@
 
 ## Natives AOT-Binary für arm64
 
-**Stand:** Fehlt `clang` auf dem bauenden Rechner, weicht `build.sh` für arm64
-auf ein self-contained Single-File-Bundle mit JIT aus — rund 20 MB statt 12 auf
-der Platte und spürbar mehr Arbeitsspeicher zur Laufzeit.
+**Erledigt für veröffentlichte Binaries.** `.github/workflows/release.yml` baut
+`linux-arm64` auf einem arm64-Runner, also auf der eigenen Architektur — dort
+genügt die vorhandene Toolchain, und `build.sh` schaltet von selbst auf Native
+AOT um. Das Binary aus dem Release ist damit AOT (rund 12 MB statt 20), und
+`install-relay.sh` lässt `MemoryDenyWriteExecute=yes` in der systemd-Einheit
+stehen.
 
-**Folge:** Ein solches Bundle lässt sich nicht mit
-`MemoryDenyWriteExecute=yes` betreiben; ein JIT braucht beschreibbaren
-ausführbaren Speicher. Wer es einsetzt, nimmt die Zeile aus der systemd-Einheit
-und verliert damit eine Schutzlage, die beim nativen Binary greift. Für
-32-bit-ARM gibt es kein Native AOT, dort bleibt es dabei.
-
-**Wie es geht:**
+**Offen bleibt das Querbauen auf dem Arbeitsplatz.** Ohne `clang` weicht
+`build.sh` weiter auf ein Single-File-Bundle mit JIT aus; wer so ein Binary
+ausliefert, verliert die Sperre gegen beschreibbaren ausführbaren Speicher.
+Für 32-bit-ARM (`linux-arm`) gibt es ohnehin kein AOT.
 
 ```sh
-sudo apt install clang lld
-./build.sh linux-arm64
-./scripts/deploy-relay.sh
+sudo apt install clang lld     # danach baut build.sh auch arm64 nativ
 ```
 
-`build.sh` schaltet von selbst auf Native AOT um, sobald `clang` vorhanden ist,
-und schreibt `aot` statt `singlefile` in `out/linux-arm64/BUILD-MODE`.
-`deploy-relay.sh` liest diese Datei und macht die Härtung damit wieder scharf —
-das ist bereits eingebaut, es braucht keinen weiteren Handgriff.
+Noch zu prüfen, falls das jemand braucht: ob `clang` und `lld` allein reichen.
+Zum Binden für arm64 braucht der Binder auch die Zielbibliotheken (`libc`,
+`zlib`); je nach Einrichtung kommen `gcc-aarch64-linux-gnu` und
+`zlib1g-dev:arm64` dazu. Der einfachere Weg ist inzwischen das Release.
 
-**Noch zu prüfen:** ob `clang` und `lld` allein reichen. Zum Binden für arm64
-braucht der Binder auch die Zielbibliotheken (`libc`, `zlib`); je nach
-Einrichtung kommen `gcc-aarch64-linux-gnu` und `zlib1g-dev:arm64` dazu. Wenn das
-Querbauen scheitert, ist der zweite Weg das Bauen auf dem Gerät selbst — dort
-gibt es die Zielumgebung ohnehin, nötig ist nur das .NET-SDK.
+**Auf dem laufenden Relay** liegt noch das alte Bundle mit JIT. Ein Wechsel auf
+das Release-Binary bringt die Härtung zurück und spart Arbeitsspeicher:
 
-**Aufwand:** eine Viertelstunde, sofern das Querbauen auf Anhieb bindet.
+```sh
+sudo ./install-relay.sh -holen -name <name>
+```
 
 ---
 

@@ -7,7 +7,7 @@
 #
 # Gebraucht wird das Binary und - sofern nicht hier erzeugt - die PKI:
 #
-#     schleuse                        zwingend
+#     schleuse                        zwingend, oder mit -holen herunterladen
 #     ca.crt relay.crt relay.key      zwingend, oder mit -pki-neu erzeugen
 #     device-ca.crt device-ca.key     fuer die Selbstanmeldung
 #     BUILD-MODE                      sagt, ob Native AOT oder Bundle
@@ -15,6 +15,12 @@
 # Alles davon neben dieses Skript legen und aufrufen:
 #
 #     sudo ./install-relay.sh
+#
+# Auf einem Geraet ohne alles genuegt das Skript selbst: -holen laedt das
+# Binary zur erkannten Architektur aus dem neuesten Release und prueft es
+# gegen die dort veroeffentlichten Pruefsummen.
+#
+#     sudo ./install-relay.sh -holen -pki-neu -name relais.example.com
 #
 # Aus dem Quellbaum heraus findet das Skript Binary und PKI von selbst
 # (out/<rid>/ und ./pki bzw. $SCHLEUSE_PKI).
@@ -44,7 +50,14 @@ PROBE=nein        # -n: nur berichten, nichts anfassen
 PKINEU=nein       # -pki-neu: CA hier erzeugen, ohne zu fragen
 ENROLL=ja         # Selbstanmeldung einrichten
 CLIENT=""         # zusaetzlich ein Bediener-Zertifikat ausstellen
+HOLEN=nein        # -holen: Binary aus dem Release laden
+FASSUNG=""        # -fassung <tag>: statt des neuesten Release
 DIENST=schleuse-relay
+REPO="${SCHLEUSE_REPO:-408b7f8b/schleuse}"
+
+# Alles, was beim Beenden wieder wegkommt.
+AUFRAEUMEN=""
+trap 'rm -rf $AUFRAEUMEN' EXIT
 
 CA_DAYS="${CA_DAYS:-3650}"
 RELAY_DAYS="${RELAY_DAYS:-825}"
@@ -73,6 +86,8 @@ Aufruf: install-relay.sh [Angaben]
 
   -d <verz>        Verzeichnis mit Binary und Zertifikaten
                    (Vorgabe: neben diesem Skript, sonst der Quellbaum)
+  -holen           Binary aus dem neuesten Release laden, Pruefsumme pruefen
+  -fassung <tag>   dabei diese Fassung statt der neuesten (z.B. v1.0.0)
   -name <name>     Name, unter dem Geraete den Relay ansprechen. Mehrfach
                    moeglich; der erste steht im CN. Ohne Angabe wird geraten.
   -port <n>        Tunnelport (Vorgabe 443)
@@ -99,6 +114,8 @@ while [ $# -gt 0 ]; do
 	-port)            braucht -port $#; PORT=$2; shift 2 ;;
 	-web)             braucht -web $#; WEBPORT=$2; shift 2 ;;
 	-pki)             braucht -pki $#; PKI=$2; shift 2 ;;
+	-holen)           HOLEN=ja; shift ;;
+	-fassung)         braucht -fassung $#; FASSUNG=$2; HOLEN=ja; shift 2 ;;
 	-pki-neu)         PKINEU=ja; shift ;;
 	-client)          braucht -client $#; CLIENT=$2; shift 2 ;;
 	-ohne-enrollment) ENROLL=nein; shift ;;
@@ -131,18 +148,87 @@ case "$(uname -m)" in
 esac
 zeile "Architektur: $(uname -m) -> $RID"
 
+# --- Binary holen ------------------------------------------------------------
+# Laedt <url> nach <ziel>. curl und wget koennen beide, was hier gebraucht wird;
+# auf einem frisch aufgesetzten Geraet ist mal das eine, mal das andere da.
+lade() {
+	if [ -n "$LADER" ]; then
+		case "$LADER" in
+			curl) curl -fsSL --retry 3 --connect-timeout 15 -o "$2" "$1" ;;
+			wget) wget -q -T 15 -O "$2" "$1" ;;
+		esac
+	fi
+}
+
+if [ "$HOLEN" = ja ]; then
+	sag "Binary holen"
+	LADER=""
+	if command -v curl >/dev/null; then LADER=curl
+	elif command -v wget >/dev/null; then LADER=wget
+	else die "weder curl noch wget vorhanden - ohne eines von beiden kann ich nichts holen"
+	fi
+	command -v sha256sum >/dev/null ||
+		die "sha256sum fehlt - ohne Pruefsumme lade ich nichts aus dem Netz"
+
+	# Ohne Angabe die neueste Fassung. GitHub leitet /releases/latest auf
+	# /releases/tag/<tag> um; damit steht der Name fest, bevor irgendetwas
+	# geladen wird - und er steht nachher im Bericht.
+	if [ -z "$FASSUNG" ] && [ "$LADER" = curl ]; then
+		FASSUNG=$(curl -fsS -o /dev/null -w '%{redirect_url}' \
+			"https://github.com/$REPO/releases/latest" 2>/dev/null |
+			sed -n 's|.*/releases/tag/||p')
+	fi
+	if [ -n "$FASSUNG" ]; then
+		BASIS="https://github.com/$REPO/releases/download/$FASSUNG"
+		zeile "Release:  $FASSUNG"
+	else
+		BASIS="https://github.com/$REPO/releases/latest/download"
+		zeile "Release:  neuestes"
+	fi
+
+	HOLDIR=$(mktemp -d); AUFRAEUMEN="$AUFRAEUMEN $HOLDIR"
+	zeile "hole:     $BASIS/schleuse-$RID"
+	if ! MELDUNG=$(lade "$BASIS/schleuse-$RID" "$HOLDIR/schleuse" 2>&1); then
+		die "Download fehlgeschlagen: ${MELDUNG:-keine naehere Angabe}
+             Gibt es zu $RID ein Binary in diesem Release?
+             Uebersicht: https://github.com/$REPO/releases"
+	fi
+	if ! MELDUNG=$(lade "$BASIS/SHA256SUMS" "$HOLDIR/SHA256SUMS" 2>&1); then
+		die "SHA256SUMS liess sich nicht laden: ${MELDUNG:-keine naehere Angabe}
+             Ohne Pruefsumme geht es nicht weiter."
+	fi
+
+	SOLL=$(awk -v n="schleuse-$RID" '$2 == n || $2 == "*" n {print $1}' "$HOLDIR/SHA256SUMS")
+	[ -n "$SOLL" ] || die "in SHA256SUMS steht kein Eintrag zu schleuse-$RID"
+	IST=$(sha256sum "$HOLDIR/schleuse" | awk '{print $1}')
+	if [ "$SOLL" != "$IST" ]; then
+		die "Pruefsumme stimmt nicht.
+             erwartet $SOLL
+             bekommen $IST
+             Nichts installiert. Das kann ein abgebrochener Download sein - oder
+             etwas, das man nicht ausfuehren will."
+	fi
+	chmod 755 "$HOLDIR/schleuse"
+	zeile "SHA256:   $IST"
+	zeile "stimmt mit SHA256SUMS aus dem Release ueberein"
+	Q_BIN=$HOLDIR
+	[ -n "$Q_CERT" ] || Q_CERT=$SELBST
+fi
+
 # --- Quelle bestimmen --------------------------------------------------------
+sag "Quelle"
 if [ -z "$Q_BIN" ]; then
 	if [ -f "$SELBST/schleuse" ]; then
 		Q_BIN=$SELBST; Q_CERT=$SELBST
 	elif [ -f "$SELBST/../out/$RID/schleuse" ]; then
 		# aus dem Quellbaum heraus aufgerufen
-		REPO=$(cd "$SELBST/.." && pwd)
-		Q_BIN="$REPO/out/$RID"
-		Q_CERT="${SCHLEUSE_PKI:-$REPO/pki}"
+		QUELLBAUM=$(cd "$SELBST/.." && pwd)
+		Q_BIN="$QUELLBAUM/out/$RID"
+		Q_CERT="${SCHLEUSE_PKI:-$QUELLBAUM/pki}"
 	else
-		die "kein Binary gefunden. Erwartet: $SELBST/schleuse (oder -d <verz>,
-             oder aus dem Quellbaum nach './build.sh $RID')"
+		die "kein Binary gefunden. Entweder neben dieses Skript legen
+             ($SELBST/schleuse), mit -d <verz> zeigen, aus dem Quellbaum
+             bauen ('./build.sh $RID') - oder mit -holen herunterladen."
 	fi
 fi
 BIN="$Q_BIN/schleuse"
@@ -156,7 +242,7 @@ PRUEF=$BIN
 if [ ! -x "$BIN" ]; then
 	# Frisch per scp uebertragen ist es oft nicht ausfuehrbar. Eine Kopie
 	# beantwortet die Frage, ohne die Vorlage anzufassen.
-	PRUEF=$(mktemp); trap 'rm -f "$PRUEF"' EXIT
+	PRUEF=$(mktemp); AUFRAEUMEN="$AUFRAEUMEN $PRUEF"
 	cp "$BIN" "$PRUEF"; chmod 755 "$PRUEF"
 fi
 FASSUNG=$("$PRUEF" version 2>&1) || die "das Binary laeuft auf dieser Maschine nicht:
@@ -305,7 +391,15 @@ CA_HIER=nein
 darf_ausstellen() {
 	if [ "$CA_HIER" = ja ]; then return 0; fi
 	if [ "$PKINEU" = ja ]; then CA_HIER=ja; return 0; fi
-	[ -t 0 ] || return 1
+	# Kommt das Skript aus einer Pipe ('curl ... | sh'), ist die Standardeingabe
+	# das Skript selbst - gefragt wird dann am Terminal.
+	if [ -t 0 ]; then
+		EIN=/dev/stdin
+	elif [ -c /dev/tty ]; then
+		EIN=/dev/tty
+	else
+		return 1
+	fi
 	printf '\n'
 	printf '  Auf dieser Maschine soll eine eigene CA entstehen (%s).\n' "$PKI"
 	printf '  Wer deren Schluessel hat, kann Bediener-Zugaenge zu allen Geraeten\n'
@@ -313,7 +407,7 @@ darf_ausstellen() {
 	printf '  schlechter aufgehoben als auf einem Rechner ohne offene Ports.\n'
 	printf '  Am Ende sage ich, wie er hier wieder verschwindet.\n\n'
 	printf '  Fortfahren? [j/N] '
-	read -r antwort || antwort=n
+	read -r antwort < "$EIN" || antwort=n
 	case "$antwort" in j|J|ja|y|Y|yes) CA_HIER=ja; return 0 ;; esac
 	return 1
 }

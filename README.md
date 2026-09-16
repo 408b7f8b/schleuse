@@ -165,6 +165,41 @@ sudo ./install-relay.sh -name tunnel.example.com
 sudo ./install-relay.sh -n -name tunnel.example.com   # erst nur berichten
 ```
 
+### Auf einem Gerät ohne Bildschirm
+
+Per SSH verbunden und sonst nichts dabei: Skript holen, ansehen, ausführen.
+
+```sh
+curl -fsSLO https://raw.githubusercontent.com/408b7f8b/schleuse/main/scripts/install-relay.sh
+less install-relay.sh                                     # erst lesen
+chmod +x install-relay.sh
+sudo ./install-relay.sh -holen -n -name relais.example.com   # Probelauf
+sudo ./install-relay.sh -holen -name relais.example.com
+```
+
+`-holen` lädt das Binary zur erkannten Architektur aus dem neuesten
+[Release](https://github.com/408b7f8b/schleuse/releases) und vergleicht es mit
+den dort veröffentlichten `SHA256SUMS` — passt die Prüfsumme nicht, wird nichts
+installiert. `-fassung v1.0.0` nimmt eine bestimmte Fassung statt der neuesten,
+`-n` läuft den ganzen Ablauf durch, ohne etwas anzufassen.
+
+In einer Zeile geht es auch, dann aber ohne die Gelegenheit, vorher
+hineinzusehen:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/408b7f8b/schleuse/main/scripts/install-relay.sh \
+  | sudo sh -s -- -holen -pki-neu -name relais.example.com
+```
+
+Die Zertifikate kommen üblicherweise vom Arbeitsplatz, wo die CA liegt:
+
+```sh
+scp ca.crt relay.crt relay.key device-ca.crt device-ca.key benutzer@gerät:
+```
+
+`-pki-neu` lässt das Gerät sie stattdessen selbst ausstellen — mit der Folge,
+die unten steht.
+
 `install-relay.sh` stellt auf Wunsch auch die Zertifikate aus, wenn keine
 mitgebracht werden:
 

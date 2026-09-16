@@ -1,0 +1,144 @@
+# Baut die Binaries und haengt sie an ein Release.
+#
+# Ausgeloest von einem Tag:
+#
+#     git tag -a v1.0.1 -m 'Fassung 1.0.1'
+#     git push origin v1.0.1
+#
+# Ergebnis: ein Release mit schleuse-linux-x64, schleuse-linux-arm64,
+# schleuse-linux-arm und SHA256SUMS. Genau diese Namen erwartet
+# 'install-relay.sh -holen'.
+#
+# x64 und arm64 werden jeweils auf ihrer eigenen Architektur gebaut. Das ist
+# nicht Bequemlichkeit: Native AOT braucht zum Querbauen clang samt
+# Zielumgebung, auf der eigenen Architektur genuegt das, was da ist. Fuer
+# 32-bit-ARM gibt es kein AOT - dort entsteht ein Single-File-Bundle mit JIT.
+# install-relay.sh erkennt das am Binary und nimmt MemoryDenyWriteExecute
+# aus der systemd-Einheit.
+
+name: Freigabe
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bauen:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            rids: linux-x64 linux-arm
+          - runner: ubuntu-24.04-arm
+            rids: linux-arm64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      # Der ILCompiler ruft zum Binden clang auf; zlib braucht er dazu.
+      - name: Werkzeuge fuer Native AOT
+        run: sudo apt-get update && sudo apt-get install -y clang lld zlib1g-dev
+
+      - name: Bauen
+        run: ./build.sh ${{ matrix.rids }}
+
+      - name: Einsammeln
+        run: |
+          mkdir -p artefakte
+          for rid in ${{ matrix.rids }}; do
+            cp "out/$rid/schleuse" "artefakte/schleuse-$rid"
+            cp "out/$rid/BUILD-MODE" "artefakte/BUILD-MODE-$rid"
+          done
+          ls -l artefakte
+
+      # Ein gebautes Binary, das nicht einmal seine eigene Fassung nennen kann,
+      # geht gar nicht erst in ein Release. Auf dem arm-Binary laeuft dieser
+      # Schritt nicht - es passt nicht zur Architektur des Runners.
+      - name: Kurz gegenlesen
+        run: |
+          for rid in ${{ matrix.rids }}; do
+            case "$rid" in
+              linux-arm) echo "$rid: hier nicht ausfuehrbar, uebersprungen"; continue ;;
+            esac
+            chmod +x "artefakte/schleuse-$rid"
+            "./artefakte/schleuse-$rid" version
+            "./artefakte/schleuse-$rid" verify-crypto
+          done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: binaries-${{ matrix.runner }}
+          path: artefakte/
+          retention-days: 7
+
+  freigeben:
+    needs: bauen
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: eingesammelt
+          merge-multiple: true
+
+      - name: Pruefsummen und Anschreiben
+        run: |
+          cd eingesammelt
+          sha256sum schleuse-linux-* > SHA256SUMS
+          cat SHA256SUMS
+          {
+            echo "Binaries fuer Linux, ohne vorinstallierte .NET-Runtime lauffaehig."
+            echo
+            echo '| Datei | Architektur | Betriebsart | Groesse |'
+            echo '|---|---|---|---|'
+            for f in schleuse-linux-*; do
+              rid=${f#schleuse-}
+              modus=$(cat "BUILD-MODE-$rid" 2>/dev/null || echo unbekannt)
+              case "$modus" in
+                aot)        text='Native AOT' ;;
+                singlefile) text='Single-File-Bundle mit JIT' ;;
+                *)          text="$modus" ;;
+              esac
+              printf '| `%s` | %s | %s | %s |\n' "$f" "$rid" "$text" "$(du -h "$f" | cut -f1)"
+            done
+            echo
+            echo '## Auf dem Geraet einrichten'
+            echo
+            echo '```sh'
+            echo "curl -fsSLO https://raw.githubusercontent.com/${{ github.repository }}/${{ github.ref_name }}/scripts/install-relay.sh"
+            echo 'less install-relay.sh                 # erst ansehen'
+            echo 'chmod +x install-relay.sh'
+            echo "sudo ./install-relay.sh -holen -fassung ${{ github.ref_name }} -name relais.example.com"
+            echo '```'
+            echo
+            echo 'Das Skript holt das Binary zur erkannten Architektur aus diesem Release'
+            echo 'und vergleicht es mit `SHA256SUMS`, bevor irgendetwas installiert wird.'
+            echo
+            echo 'Von Hand nachpruefen:'
+            echo
+            echo '```sh'
+            echo 'sha256sum -c SHA256SUMS --ignore-missing'
+            echo '```'
+          } > ANSCHREIBEN.md
+          rm -f BUILD-MODE-*
+
+      - name: Release anlegen
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            --repo "${{ github.repository }}" \
+            --title "schleuse ${{ github.ref_name }}" \
+            --notes-file eingesammelt/ANSCHREIBEN.md \
+            eingesammelt/schleuse-linux-* eingesammelt/SHA256SUMS

@@ -164,6 +164,40 @@ sudo ./install-relay.sh -name tunnel.example.com
 sudo ./install-relay.sh -n -name tunnel.example.com   # report only, change nothing
 ```
 
+### On a device without a screen
+
+Connected over SSH and nothing else at hand: fetch the script, read it, run it.
+
+```sh
+curl -fsSLO https://raw.githubusercontent.com/408b7f8b/schleuse/main/scripts/install-relay.sh
+less install-relay.sh                                     # read it first
+chmod +x install-relay.sh
+sudo ./install-relay.sh -holen -n -name relais.example.com   # dry run
+sudo ./install-relay.sh -holen -name relais.example.com
+```
+
+`-holen` ("fetch") downloads the binary for the detected architecture from the
+latest [release](https://github.com/408b7f8b/schleuse/releases) and compares it
+against the `SHA256SUMS` published there — if the checksum does not match,
+nothing is installed. `-fassung v1.0.0` pins a specific release, `-n` walks
+through everything without touching a thing.
+
+A single line works too, at the price of not looking at the script first:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/408b7f8b/schleuse/main/scripts/install-relay.sh \
+  | sudo sh -s -- -holen -pki-neu -name relais.example.com
+```
+
+The certificates usually come from the workstation that holds the CA:
+
+```sh
+scp ca.crt relay.crt relay.key device-ca.crt device-ca.key user@device:
+```
+
+`-pki-neu` has the device issue them itself instead — with the consequence
+described below.
+
 If no certificates are brought along, `install-relay.sh` can issue them:
 
 ```sh
